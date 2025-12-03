@@ -24,8 +24,7 @@ services:
 
 
   mcp-server-weixin-app:
-    #    image: fuzhengwei/mcp-server-weixin-app:1.1
-    image: registry.cn-hangzhou.aliyuncs.com/fuzhengwei/mcp-server-weixin-app:1.1
+    image: crpi-h72uuoykjtkkaagf.cn-hangzhou.personal.cr.aliyuncs.com/applesheep/mcp-server-weixin-app:1.2
     container_name: mcp-server-weixin-app
     restart: always
     ports:

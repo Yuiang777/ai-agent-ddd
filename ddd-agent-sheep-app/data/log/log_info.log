@@ -3322,3 +3322,65 @@ Caused by: java.net.SocketException: Socket closed
 25-12-02.01:03:40.806 [HttpClient-4-Worker-3] WARN  McpClientSession       - Unexpected response for unknown id 2f8dfbb0-3
 25-12-02.01:03:43.365 [SpringApplicationShutdownHook] INFO  HikariDataSource       - Retail_HikariCP - Shutdown initiated...
 25-12-02.01:03:43.373 [SpringApplicationShutdownHook] INFO  HikariDataSource       - Retail_HikariCP - Shutdown completed.
+25-12-02.13:25:02.307 [main            ] INFO  AiAgentTest            - Starting AiAgentTest using Java 17.0.14 with PID 40636 (started by 35418 in F:\javaproject\AI\ddd-agent-sheep\ddd-agent-sheep-app)
+25-12-02.13:25:02.310 [main            ] INFO  AiAgentTest            - The following 1 profile is active: "dev"
+25-12-02.13:25:05.728 [main            ] INFO  PgVectorStore          - Using the vector table name: vector_store. Is empty: false
+25-12-02.13:25:05.732 [main            ] INFO  PgVectorStore          - Initializing PGVectorStore schema for table: vector_store in schema: public
+25-12-02.13:25:05.732 [main            ] INFO  PgVectorStore          - vectorTableValidationsEnabled false
+25-12-02.13:25:05.833 [main            ] INFO  AiAgentTest            - Started AiAgentTest in 4.08 seconds (process running for 5.602)
+25-12-02.13:25:07.102 [HttpClient-4-Worker-0] INFO  McpAsyncClient         - Server response with Protocol: 2024-11-05, Capabilities: ServerCapabilities[completions=null, experimental=null, logging=LoggingCapabilities[], prompts=null, resources=null, tools=ToolCapabilities[listChanged=true]], Info: Implementation[name=mcp-server-weixin, version=1.0.0] and Instructions null
+25-12-02.13:25:07.384 [HttpClient-5-Worker-2] INFO  McpAsyncClient         - Server response with Protocol: 2024-11-05, Capabilities: ServerCapabilities[completions=null, experimental=null, logging=LoggingCapabilities[], prompts=null, resources=null, tools=ToolCapabilities[listChanged=true]], Info: Implementation[name=mcp-server-csdn, version=1.0.0] and Instructions null
+25-12-02.13:25:07.528 [HttpClient-4-Worker-0] WARN  McpClientSession       - Unexpected response for unknown id c049cfb0-0
+25-12-02.13:25:07.532 [HttpClient-6-Worker-2] INFO  McpAsyncClient         - Server response with Protocol: 2024-11-05, Capabilities: ServerCapabilities[completions=null, experimental=null, logging=LoggingCapabilities[], prompts=null, resources=null, tools=ToolCapabilities[listChanged=true]], Info: Implementation[name=mcp-server-weixin, version=1.0.0] and Instructions null
+25-12-02.13:25:07.559 [HttpClient-5-Worker-1] WARN  McpClientSession       - Unexpected response for unknown id 14348bf8-0
+25-12-02.13:25:07.563 [HttpClient-7-Worker-2] INFO  McpAsyncClient         - Server response with Protocol: 2024-11-05, Capabilities: ServerCapabilities[completions=null, experimental=null, logging=LoggingCapabilities[], prompts=null, resources=null, tools=ToolCapabilities[listChanged=true]], Info: Implementation[name=mcp-server-csdn, version=1.0.0] and Instructions null
+25-12-02.13:25:07.578 [HttpClient-4-Worker-0] WARN  McpClientSession       - Unexpected response for unknown id c049cfb0-1
+25-12-02.13:25:07.586 [HttpClient-5-Worker-1] WARN  McpClientSession       - Unexpected response for unknown id 14348bf8-1
+25-12-02.13:25:10.911 [main            ] INFO  HikariDataSource       - Retail_HikariCP - Starting...
+25-12-02.13:25:11.100 [main            ] INFO  HikariPool             - Retail_HikariCP - Added connection org.postgresql.jdbc.PgConnection@3f94734a
+25-12-02.13:25:11.101 [main            ] INFO  HikariDataSource       - Retail_HikariCP - Start completed.
+25-12-02.13:25:18.190 [HttpClient-5-Worker-1] WARN  McpClientSession       - Unexpected response for unknown id 14348bf8-2
+25-12-02.13:25:21.578 [SpringApplicationShutdownHook] INFO  HikariDataSource       - Retail_HikariCP - Shutdown initiated...
+25-12-02.13:25:21.590 [SpringApplicationShutdownHook] INFO  HikariDataSource       - Retail_HikariCP - Shutdown completed.
+25-12-02.13:41:22.040 [main            ] INFO  AiAgentTest            - Starting AiAgentTest using Java 17.0.14 with PID 57296 (started by 35418 in F:\javaproject\AI\ddd-agent-sheep\ddd-agent-sheep-app)
+25-12-02.13:41:22.041 [main            ] INFO  AiAgentTest            - The following 1 profile is active: "dev"
+25-12-02.13:41:26.554 [main            ] INFO  PgVectorStore          - Using the vector table name: vector_store. Is empty: false
+25-12-02.13:41:26.557 [main            ] INFO  PgVectorStore          - Initializing PGVectorStore schema for table: vector_store in schema: public
+25-12-02.13:41:26.558 [main            ] INFO  PgVectorStore          - vectorTableValidationsEnabled false
+25-12-02.13:41:26.651 [main            ] INFO  AiAgentTest            - Started AiAgentTest in 5.206 seconds (process running for 6.507)
+25-12-02.13:41:28.280 [HttpClient-4-Worker-0] INFO  McpAsyncClient         - Server response with Protocol: 2024-11-05, Capabilities: ServerCapabilities[completions=null, experimental=null, logging=LoggingCapabilities[], prompts=null, resources=null, tools=ToolCapabilities[listChanged=true]], Info: Implementation[name=mcp-server-weixin, version=1.0.0] and Instructions null
+25-12-02.13:41:28.338 [HttpClient-5-Worker-0] INFO  McpAsyncClient         - Server response with Protocol: 2024-11-05, Capabilities: ServerCapabilities[completions=null, experimental=null, logging=LoggingCapabilities[], prompts=null, resources=null, tools=ToolCapabilities[listChanged=true]], Info: Implementation[name=mcp-server-csdn, version=1.0.0] and Instructions null
+25-12-02.13:41:28.450 [HttpClient-4-Worker-3] WARN  McpClientSession       - Unexpected response for unknown id 1681cee6-0
+25-12-02.13:41:28.455 [HttpClient-6-Worker-2] INFO  McpAsyncClient         - Server response with Protocol: 2024-11-05, Capabilities: ServerCapabilities[completions=null, experimental=null, logging=LoggingCapabilities[], prompts=null, resources=null, tools=ToolCapabilities[listChanged=true]], Info: Implementation[name=mcp-server-weixin, version=1.0.0] and Instructions null
+25-12-02.13:41:28.481 [HttpClient-5-Worker-1] WARN  McpClientSession       - Unexpected response for unknown id fbcc3ad9-0
+25-12-02.13:41:28.485 [HttpClient-7-Worker-2] INFO  McpAsyncClient         - Server response with Protocol: 2024-11-05, Capabilities: ServerCapabilities[completions=null, experimental=null, logging=LoggingCapabilities[], prompts=null, resources=null, tools=ToolCapabilities[listChanged=true]], Info: Implementation[name=mcp-server-csdn, version=1.0.0] and Instructions null
+25-12-02.13:41:28.502 [HttpClient-4-Worker-3] WARN  McpClientSession       - Unexpected response for unknown id 1681cee6-1
+25-12-02.13:41:28.510 [HttpClient-5-Worker-1] WARN  McpClientSession       - Unexpected response for unknown id fbcc3ad9-1
+25-12-02.13:41:31.629 [main            ] INFO  HikariDataSource       - Retail_HikariCP - Starting...
+25-12-02.13:41:31.829 [main            ] INFO  HikariPool             - Retail_HikariCP - Added connection org.postgresql.jdbc.PgConnection@2187432f
+25-12-02.13:41:31.832 [main            ] INFO  HikariDataSource       - Retail_HikariCP - Start completed.
+25-12-02.13:41:40.187 [HttpClient-5-Worker-1] WARN  McpClientSession       - Unexpected response for unknown id fbcc3ad9-2
+25-12-02.13:41:40.219 [SpringApplicationShutdownHook] INFO  HikariDataSource       - Retail_HikariCP - Shutdown initiated...
+25-12-02.13:41:40.225 [SpringApplicationShutdownHook] INFO  HikariDataSource       - Retail_HikariCP - Shutdown completed.
+25-12-02.13:43:11.967 [main            ] INFO  AiAgentTest            - Starting AiAgentTest using Java 17.0.14 with PID 55500 (started by 35418 in F:\javaproject\AI\ddd-agent-sheep\ddd-agent-sheep-app)
+25-12-02.13:43:11.971 [main            ] INFO  AiAgentTest            - The following 1 profile is active: "dev"
+25-12-02.13:43:15.593 [main            ] INFO  PgVectorStore          - Using the vector table name: vector_store. Is empty: false
+25-12-02.13:43:15.602 [main            ] INFO  PgVectorStore          - Initializing PGVectorStore schema for table: vector_store in schema: public
+25-12-02.13:43:15.602 [main            ] INFO  PgVectorStore          - vectorTableValidationsEnabled false
+25-12-02.13:43:15.691 [main            ] INFO  AiAgentTest            - Started AiAgentTest in 4.236 seconds (process running for 5.715)
+25-12-02.13:43:16.643 [HttpClient-4-Worker-0] INFO  McpAsyncClient         - Server response with Protocol: 2024-11-05, Capabilities: ServerCapabilities[completions=null, experimental=null, logging=LoggingCapabilities[], prompts=null, resources=null, tools=ToolCapabilities[listChanged=true]], Info: Implementation[name=mcp-server-weixin, version=1.0.0] and Instructions null
+25-12-02.13:43:16.708 [HttpClient-5-Worker-2] INFO  McpAsyncClient         - Server response with Protocol: 2024-11-05, Capabilities: ServerCapabilities[completions=null, experimental=null, logging=LoggingCapabilities[], prompts=null, resources=null, tools=ToolCapabilities[listChanged=true]], Info: Implementation[name=mcp-server-csdn, version=1.0.0] and Instructions null
+25-12-02.13:43:16.824 [HttpClient-4-Worker-3] WARN  McpClientSession       - Unexpected response for unknown id 85255da0-0
+25-12-02.13:43:16.831 [HttpClient-6-Worker-2] INFO  McpAsyncClient         - Server response with Protocol: 2024-11-05, Capabilities: ServerCapabilities[completions=null, experimental=null, logging=LoggingCapabilities[], prompts=null, resources=null, tools=ToolCapabilities[listChanged=true]], Info: Implementation[name=mcp-server-weixin, version=1.0.0] and Instructions null
+25-12-02.13:43:16.862 [HttpClient-5-Worker-0] WARN  McpClientSession       - Unexpected response for unknown id 7139db35-0
+25-12-02.13:43:16.867 [HttpClient-7-Worker-1] INFO  McpAsyncClient         - Server response with Protocol: 2024-11-05, Capabilities: ServerCapabilities[completions=null, experimental=null, logging=LoggingCapabilities[], prompts=null, resources=null, tools=ToolCapabilities[listChanged=true]], Info: Implementation[name=mcp-server-csdn, version=1.0.0] and Instructions null
+25-12-02.13:43:16.886 [HttpClient-4-Worker-3] WARN  McpClientSession       - Unexpected response for unknown id 85255da0-1
+25-12-02.13:43:16.894 [HttpClient-5-Worker-0] WARN  McpClientSession       - Unexpected response for unknown id 7139db35-1
+25-12-02.13:43:19.090 [main            ] INFO  HikariDataSource       - Retail_HikariCP - Starting...
+25-12-02.13:43:19.237 [main            ] INFO  HikariPool             - Retail_HikariCP - Added connection org.postgresql.jdbc.PgConnection@79e8dd4d
+25-12-02.13:43:19.238 [main            ] INFO  HikariDataSource       - Retail_HikariCP - Start completed.
+25-12-02.13:43:33.054 [HttpClient-5-Worker-0] WARN  McpClientSession       - Unexpected response for unknown id 7139db35-2
+25-12-02.13:43:44.490 [HttpClient-5-Worker-0] WARN  McpClientSession       - Unexpected response for unknown id 7139db35-3
+25-12-02.13:43:46.189 [HttpClient-4-Worker-3] WARN  McpClientSession       - Unexpected response for unknown id 85255da0-2
+25-12-02.13:43:48.130 [SpringApplicationShutdownHook] INFO  HikariDataSource       - Retail_HikariCP - Shutdown initiated...
+25-12-02.13:43:48.142 [SpringApplicationShutdownHook] INFO  HikariDataSource       - Retail_HikariCP - Shutdown completed.
