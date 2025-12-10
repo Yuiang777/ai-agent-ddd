@@ -43,6 +43,12 @@
             <groupId>cn.apple</groupId>
             <artifactId>ddd-agent-sheep-types</artifactId>
         </dependency>
+
+        <!--扳手 - 设计模式-->
+        <dependency>
+            <groupId>cn.applesheep.wrench</groupId>
+            <artifactId>applesheep-wrench-starter-design-framework</artifactId>
+        </dependency>
     </dependencies>
 
     <build>

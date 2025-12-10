@@ -1,0 +1,56 @@
+package cn.apple.domain.agent.model.valobj;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.util.List;
+
+/**
+ * @author _apple_sheep_
+ * @description AI客户端，值对象
+ * @date 2025/12/10
+ * @Copyright github:Yuiang777
+ */
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class AiClientVO {
+
+    /**
+     * 客户端ID
+     */
+    private String clientId;
+
+    /**
+     * 客户端名称
+     */
+    private String clientName;
+
+    /**
+     * 描述
+     */
+    private String description;
+
+    /**
+     * 全局唯一模型ID
+     */
+    private String modelId;
+
+    /**
+     * Prompt ID List
+     */
+    private List<String> promptIdList;
+
+    /**
+     * MCP ID List
+     */
+    private List<String> mcpIdList;
+
+    /**
+     * 顾问ID List
+     */
+    private List<String> advisorIdList;
+}
