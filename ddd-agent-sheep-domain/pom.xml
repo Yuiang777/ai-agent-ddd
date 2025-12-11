@@ -53,6 +53,10 @@
             <groupId>cn.applesheep.wrench</groupId>
             <artifactId>applesheep-wrench-starter-design-framework</artifactId>
         </dependency>
+        <dependency>
+            <groupId>cn.applesheep.wrench</groupId>
+            <artifactId>applesheep-wrench-starter-design-framework</artifactId>
+        </dependency>
     </dependencies>
 
     <build>
