@@ -1,6 +1,7 @@
 package cn.apple.test.ai;
 
-import cn.apple.test.ai.advisors.RagAnswerAdvisor;
+
+import cn.apple.test.advisors.RagAnswerAdvisor;
 import com.alibaba.fastjson.JSON;
 import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.McpSyncClient;

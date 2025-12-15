@@ -7,6 +7,10 @@ import cn.applesheep.wrench.design.framework.tree.AbstractMultiThreadStrategyRou
 import jakarta.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.beans.factory.support.AbstractBeanDefinition;
+import org.springframework.beans.factory.support.BeanDefinitionBuilder;
+import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.context.ApplicationContext;
 
 import java.util.concurrent.ExecutionException;
@@ -33,9 +37,33 @@ public abstract class AbstractArmorySupport extends AbstractMultiThreadStrategyR
     @Resource
     protected IAgentRepository repository;
 
+
     @Override
     protected void multiThread(ArmoryCommandEntity requestParameter, DefaultArmoryStrategyFactory.DynamicContext dynamicContext) throws ExecutionException, InterruptedException, TimeoutException {
         // 缺省的
     }
+
+
+    protected synchronized<T> void registerBean(String beanName, Class<T> beanClass, T beanInstance) {
+        DefaultListableBeanFactory beanFactory = (DefaultListableBeanFactory)applicationContext.getAutowireCapableBeanFactory();
+
+        BeanDefinitionBuilder beanDefinitionBuilder = BeanDefinitionBuilder.genericBeanDefinition(beanClass, () -> beanInstance);
+        AbstractBeanDefinition rawBeanDefinition = beanDefinitionBuilder.getRawBeanDefinition();
+        rawBeanDefinition.setScope(BeanDefinition.SCOPE_SINGLETON);
+
+        if(beanFactory.containsBean(beanName)){
+            beanFactory.removeBeanDefinition(beanName);
+        }
+
+        beanFactory.registerBeanDefinition(beanName, rawBeanDefinition);
+
+        log.info("成功构建bean:{}", beanName);
+    }
+
+
+    protected <T> T getBean(String beanName) {
+        return (T) applicationContext.getBean(beanName);
+    }
+
 
 }

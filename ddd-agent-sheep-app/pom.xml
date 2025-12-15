@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             http://maven.apache.org/xsd/maven-4.0.0.xsd">
 
     <modelVersion>4.0.0</modelVersion>
 
+    <!-- ⚠️ 强烈建议父工程使用 Spring Boot 3.2.x -->
     <parent>
         <groupId>cn.apple</groupId>
         <artifactId>ddd-agent-sheep</artifactId>
@@ -14,61 +16,44 @@
     <artifactId>ddd-agent-sheep-app</artifactId>
     <packaging>jar</packaging>
 
-    <!-- ⭐ Spring AI 版本 -->
     <properties>
+        <java.version>17</java.version>
         <spring-ai.version>1.0.0</spring-ai.version>
     </properties>
 
-    <!-- ⭐ Spring 官方仓库（Spring AI 必须有这个，否则下载不到） -->
+    <!-- Spring AI 官方仓库 -->
     <repositories>
         <repository>
             <id>spring-milestones</id>
-            <name>Spring Milestone Repository</name>
             <url>https://repo.spring.io/milestone</url>
         </repository>
         <repository>
             <id>spring-snapshot</id>
-            <name>Spring Snapshot Repository</name>
             <url>https://repo.spring.io/snapshot</url>
         </repository>
     </repositories>
 
     <dependencies>
 
-        <!-- Spring Boot 基础依赖 -->
+        <!-- Web -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.apache.tomcat.embed</groupId>
-            <artifactId>tomcat-embed-core</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-configuration-processor</artifactId>
-        </dependency>
-
+        <!-- MyBatis -->
         <dependency>
             <groupId>org.mybatis.spring.boot</groupId>
             <artifactId>mybatis-spring-boot-starter</artifactId>
         </dependency>
 
-        <!-- MySQL 驱动 -->
+        <!-- MySQL -->
         <dependency>
             <groupId>mysql</groupId>
             <artifactId>mysql-connector-java</artifactId>
         </dependency>
 
-        <!-- 常用工具 -->
+        <!-- 基础工具 -->
         <dependency>
             <groupId>com.alibaba</groupId>
             <artifactId>fastjson</artifactId>
@@ -80,21 +65,16 @@
         </dependency>
 
         <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-        </dependency>
-
-        <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
         </dependency>
 
         <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <scope>test</scope>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
         </dependency>
 
+        <!-- JWT -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt</artifactId>
@@ -110,39 +90,37 @@
             <artifactId>commons-codec</artifactId>
         </dependency>
 
+        <!-- Retrofit -->
         <dependency>
             <groupId>com.squareup.retrofit2</groupId>
             <artifactId>converter-gson</artifactId>
             <version>2.9.0</version>
         </dependency>
 
-        <!-- ⭐ Spring AI START -->
+        <!-- ========== Spring AI 1.0.0 ========== -->
+
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-starter-model-openai</artifactId>
-            <version>${spring-ai.version}</version>
         </dependency>
 
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-starter-vector-store-pgvector</artifactId>
-            <version>${spring-ai.version}</version>
         </dependency>
 
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-starter-mcp-client-webflux</artifactId>
-            <version>${spring-ai.version}</version>
         </dependency>
 
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-tika-document-reader</artifactId>
-            <version>${spring-ai.version}</version>
         </dependency>
-        <!-- ⭐ Spring AI END -->
 
-        <!-- 工程依赖 -->
+        <!-- ========== 工程模块 ========== -->
+
         <dependency>
             <groupId>cn.apple</groupId>
             <artifactId>ddd-agent-sheep-trigger</artifactId>
@@ -150,32 +128,33 @@
 
         <dependency>
             <groupId>cn.apple</groupId>
-            <artifactId>ddd-agent-sheep-infrastructure</artifactId>
+            <artifactId>ddd-agent-sheep-domain</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <scope>test</scope>
         </dependency>
 
     </dependencies>
 
     <build>
-        <finalName>ddd-agent-sheep-app</finalName>
-
-        <resources>
-            <resource>
-                <directory>src/main/resources</directory>
-                <filtering>true</filtering>
-            </resource>
-        </resources>
+        <finalName>ai-agent-station-study-app</finalName>
 
         <plugins>
+
+            <!-- 禁用测试执行 -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.6</version>
+                <version>3.2.5</version>
                 <configuration>
                     <skipTests>true</skipTests>
-                    <testFailureIgnore>false</testFailureIgnore>
-                    <includes>
-                        <include>**/*Test.java</include>
-                    </includes>
                 </configuration>
             </plugin>
 
@@ -184,7 +163,6 @@
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
                     <mainClass>cn.apple.Application</mainClass>
-                    <layout>JAR</layout>
                 </configuration>
             </plugin>
 

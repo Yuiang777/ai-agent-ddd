@@ -1,6 +1,9 @@
 package cn.apple.infrastructure.persistent.repository;
 
 import cn.apple.domain.agent.adapter.repository.IAgentRepository;
+import cn.apple.ai.infrastructure.mapper.*;
+import cn.apple.ai.infrastructure.persistent.dao.*;
+import cn.apple.ai.infrastructure.persistent.po.*;
 import cn.apple.domain.agent.model.valobj.*;
 import cn.apple.infrastructure.mapper.*;
 import cn.apple.infrastructure.persistent.dao.*;

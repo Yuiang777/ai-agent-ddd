@@ -1,9 +1,10 @@
 package cn.apple.domain.agent.service.armory.business.data.impl;
 
-import cn.apple.domain.agent.adapter.repository.IAgentRepository;
 import cn.apple.domain.agent.model.entity.ArmoryCommandEntity;
 import cn.apple.domain.agent.model.valobj.*;
+import cn.apple.domain.agent.model.valobj.*;
 import cn.apple.domain.agent.service.armory.business.data.ILordDataStrategy;
+import cn.apple.domain.agent.adapter.repository.IAgentRepository;
 import cn.apple.domain.agent.service.armory.factory.DefaultArmoryStrategyFactory;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -21,7 +22,7 @@ import java.util.concurrent.ThreadPoolExecutor;
  */
 @Slf4j
 @Service("aiClientLoadDataStrategy")
-public class AiClientLoadDataStrategy implements ILordDataStrategy{
+public class AiClientLoadDataStrategy implements ILordDataStrategy {
 
     @Resource
     private IAgentRepository repository;
@@ -62,5 +63,16 @@ public class AiClientLoadDataStrategy implements ILordDataStrategy{
             log.info("查询配置数据(ai_client) {}", clientIdList);
             return repository.AiClientVOByClientIds(clientIdList);
         }, threadPoolExecutor);
+
+
+        CompletableFuture.allOf(aiClientApiListFuture).thenRun(() -> {
+            dynamicContext.setValue(AiAgentEnumVO.AI_CLIENT_API.getDataName(), aiClientApiListFuture.join());
+            dynamicContext.setValue(AiAgentEnumVO.AI_CLIENT_MODEL.getDataName(), aiClientModelListFuture.join());
+            dynamicContext.setValue(AiAgentEnumVO.AI_CLIENT_SYSTEM_PROMPT.getDataName(), aiClientToolMcpListFuture.join());
+            dynamicContext.setValue(AiAgentEnumVO.AI_CLIENT_TOOL_MCP.getDataName(), aiClientSystemPromptListFuture.join());
+            dynamicContext.setValue(AiAgentEnumVO.AI_CLIENT_ADVISOR.getDataName(), aiClientAdvisorListFuture.join());
+            dynamicContext.setValue(AiAgentEnumVO.AI_CLIENT.getDataName(), aiClientListFuture.join());
+
+        }).join();
     }
 }

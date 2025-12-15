@@ -1,4 +1,4 @@
-package cn.apple.test.ai.advisors;
+package cn.apple.test.advisors;
 
 import com.alibaba.fastjson.JSON;
 
