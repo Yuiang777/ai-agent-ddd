@@ -1,5 +1,6 @@
 package cn.apple.domain.agent.model.entity;
 
+import cn.apple.domain.agent.model.valobj.AiAgentEnumVO;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -19,7 +20,15 @@ import java.util.List;
 @AllArgsConstructor
 public class ArmoryCommandEntity {
 
+
+    // 命令类型
     private String commandType;
 
+
+    // 命令ID
     private List<String> commandIdList;
+
+    public String getLordDataStrategy() {
+        return AiAgentEnumVO.getByCode(commandType).getLoadDataStrategy();
+    }
 }

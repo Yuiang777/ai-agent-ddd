@@ -10,7 +10,7 @@ import org.mapstruct.Mapper;
  * @date 2025/12/10
  * @Copyright github:Yuiang777
  */
-@Mapper
+@Mapper(componentModel = "spring")
 public interface AiClientAdvisorVO2AiClientAdvisor {
 
     AiClientAdvisorVO toVO(AiClientAdvisor aiClientAdvisor);

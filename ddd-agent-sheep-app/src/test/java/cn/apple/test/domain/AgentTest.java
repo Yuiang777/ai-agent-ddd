@@ -10,6 +10,10 @@ import lombok.extern.slf4j.Slf4j;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
@@ -43,6 +47,33 @@ public class AgentTest {
         OpenAiApi openAiApi = (OpenAiApi) applicationContext.getBean(AiAgentEnumVO.AI_CLIENT_API.getBeanName("1001"));
 
         log.info("测试结果：{}", openAiApi);
+    }
+
+
+    @Test
+    public void test_aiClientApiNode_2() throws Exception {
+        StrategyHandler<ArmoryCommandEntity, DefaultArmoryStrategyFactory.DynamicContext, String> armoryStrategyHandler =
+                defaultArmoryStrategyFactory.armoryStrategyHandler();
+
+        String apply = armoryStrategyHandler.apply(
+                ArmoryCommandEntity.builder()
+                        .commandType(AiAgentEnumVO.AI_CLIENT.getCode())
+                        .commandIdList(Arrays.asList("3001"))
+                        .build(),
+                new DefaultArmoryStrategyFactory.DynamicContext());
+
+        OpenAiChatModel openAiChatModel = (OpenAiChatModel) applicationContext.getBean(AiAgentEnumVO.AI_CLIENT_API.getBeanName("1001"));
+
+        Prompt prompt = Prompt.builder()
+                .messages(new UserMessage(
+                        """
+                                在 F:\\data 创建 txt.md 文件
+                                """))
+                .build();
+
+        ChatResponse chatResponse = openAiChatModel.call(prompt);
+
+        log.info("测试结果：{}", chatResponse);
     }
 
 }

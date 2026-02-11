@@ -44,6 +44,8 @@ public abstract class AbstractArmorySupport extends AbstractMultiThreadStrategyR
     }
 
 
+
+
     protected synchronized<T> void registerBean(String beanName, Class<T> beanClass, T beanInstance) {
         DefaultListableBeanFactory beanFactory = (DefaultListableBeanFactory)applicationContext.getAutowireCapableBeanFactory();
 
@@ -65,5 +67,13 @@ public abstract class AbstractArmorySupport extends AbstractMultiThreadStrategyR
         return (T) applicationContext.getBean(beanName);
     }
 
+
+    protected String beanName(String id) {
+        return null;
+    }
+
+    protected String dataName() {
+        return null;
+    }
 
 }

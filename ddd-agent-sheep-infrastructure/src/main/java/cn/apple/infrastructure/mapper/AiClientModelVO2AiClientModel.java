@@ -11,7 +11,7 @@ import org.mapstruct.Mapper;
  * @Copyright github:Yuiang777
  */
 
-@Mapper
+@Mapper(componentModel = "spring")
 public interface AiClientModelVO2AiClientModel {
 
     AiClientModelVO toVO(AiClientModel aiClientModel);

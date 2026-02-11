@@ -20,10 +20,21 @@ import java.util.List;
 @Slf4j
 @Service
 public class AiClientApiNode extends AbstractArmorySupport{
+
+    private final AiClientToolMcpNode aiClientToolMcpNode;
+
+    public AiClientApiNode(AiClientToolMcpNode aiClientToolMcpNode) {
+        this.aiClientToolMcpNode = aiClientToolMcpNode;
+    }
+
     @Override
     protected String doApply(ArmoryCommandEntity armoryCommandEntity, DefaultArmoryStrategyFactory.DynamicContext dynamicContext) throws Exception {
         List<AiClientApiVO> aiClientApiVOList = dynamicContext.getValue(AiAgentEnumVO.AI_CLIENT_API.getDataName());
 
+        if (aiClientApiVOList == null || aiClientApiVOList.isEmpty()) {
+            log.warn("没有需要被初始化的 ai client api");
+            return router(armoryCommandEntity, dynamicContext);
+        }
         for(AiClientApiVO aiClientApiVO : aiClientApiVOList){
             OpenAiApi openAiApi = OpenAiApi.builder()
                     .baseUrl(aiClientApiVO.getBaseUrl())
@@ -39,6 +50,16 @@ public class AiClientApiNode extends AbstractArmorySupport{
 
     @Override
     public StrategyHandler<ArmoryCommandEntity, DefaultArmoryStrategyFactory.DynamicContext, String> get(ArmoryCommandEntity armoryCommandEntity, DefaultArmoryStrategyFactory.DynamicContext dynamicContext) throws Exception {
-        return defaultStrategyHandler;
+        return aiClientToolMcpNode;
+    }
+
+    @Override
+    public String beanName(String beanId){
+        return AiAgentEnumVO.AI_CLIENT_API.getBeanName(beanId);
+    }
+
+    @Override
+    public String dataName(){
+        return AiAgentEnumVO.AI_CLIENT_API.getDataName();
     }
 }

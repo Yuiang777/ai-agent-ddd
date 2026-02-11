@@ -1,7 +1,6 @@
 package cn.apple.domain.agent.service.armory;
 
 import cn.apple.domain.agent.model.entity.ArmoryCommandEntity;
-import cn.apple.domain.agent.model.valobj.AiAgentEnumVO;
 import cn.apple.domain.agent.service.armory.business.data.ILordDataStrategy;
 import cn.apple.domain.agent.service.armory.factory.DefaultArmoryStrategyFactory;
 import cn.applesheep.wrench.design.framework.tree.StrategyHandler;
@@ -23,22 +22,19 @@ import java.util.concurrent.TimeoutException;
 public class RootNode extends AbstractArmorySupport{
 
 
+    private final AiClientApiNode  aiClientApiNode;
+
     private final Map<String, ILordDataStrategy> lordDataStrategyMap;
 
-    public RootNode(Map<String, ILordDataStrategy> lordDataStrategyMap) {
+    public RootNode(AiClientApiNode aiClientApiNode, Map<String, ILordDataStrategy> lordDataStrategyMap) {
+        this.aiClientApiNode = aiClientApiNode;
         this.lordDataStrategyMap = lordDataStrategyMap;
     }
 
     @Override
     protected void multiThread(ArmoryCommandEntity armoryCommandEntity, DefaultArmoryStrategyFactory.DynamicContext dynamicContext) throws ExecutionException, InterruptedException, TimeoutException {
-        String command = armoryCommandEntity.getCommandType();
-
-        AiAgentEnumVO byCode = AiAgentEnumVO.getByCode(command);
-        String dataName = byCode.getLoadDataStrategy();
-
-
-        ILordDataStrategy iLordDataStrategy = lordDataStrategyMap.get(dataName);
-        iLordDataStrategy.loadData(armoryCommandEntity, dynamicContext);
+        ILordDataStrategy loadDataStrategy = lordDataStrategyMap.get(armoryCommandEntity.getLordDataStrategy());
+        loadDataStrategy.loadData(armoryCommandEntity, dynamicContext);
     }
 
     @Override
@@ -48,6 +44,6 @@ public class RootNode extends AbstractArmorySupport{
 
     @Override
     public StrategyHandler<ArmoryCommandEntity, DefaultArmoryStrategyFactory.DynamicContext, String> get(ArmoryCommandEntity armoryCommandEntity, DefaultArmoryStrategyFactory.DynamicContext dynamicContext) throws Exception {
-        return defaultStrategyHandler;
+        return aiClientApiNode;
     }
 }
