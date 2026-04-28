@@ -14,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static cn.apple.domain.agent.model.valobj.AiAgentEnumVO.*;
 
@@ -268,7 +269,7 @@ public class AgentRepository implements IAgentRepository {
             List<AiClientConfig> configs = aiClientConfigDao.queryBySourceTypeAndId("client", clientId);
 
             for (AiClientConfig config : configs) {
-                if (config.getStatus() != 1 || !AiAgentEnumVO.AI_CLIENT_SYSTEM_PROMPT.getCode().equals(config.getTargetType())) {
+                if (config.getStatus() != 1 || !AiAgentEnumVO.AI_CLIENT_ADVISOR.getCode().equals(config.getTargetType())) {
                     continue;
                 }
 
@@ -291,12 +292,13 @@ public class AgentRepository implements IAgentRepository {
                 String extParam = aiClientAdvisor.getExtParam();
                 if (extParam != null && !extParam.trim().isEmpty()) {
                     try {
-                        if ("ChatMemory".equals(aiClientAdvisor.getAdvisorType())) {
+                        if ("CHAT_MEMORY".equals(aiClientAdvisor.getAdvisorType())) {
                             // 解析chatMemory配置
                             chatMemory = JSON.parseObject(extParam, AiClientAdvisorVO.ChatMemory.class);
-                        } else if ("RagAnswer".equals(aiClientAdvisor.getAdvisorType())) {
+                        } else if ("RAG_ANSWER".equals(aiClientAdvisor.getAdvisorType())) {
                             // 解析ragAnswer配置
                             ragAnswer = JSON.parseObject(extParam, AiClientAdvisorVO.RagAnswer.class);
+                            ragAnswer.setTopK(5);
                         }
                     } catch (Exception e) {
                         // 解析失败时忽略，使用默认值null
@@ -452,5 +454,29 @@ public class AgentRepository implements IAgentRepository {
         }
 
         return result;
+    }
+
+    @Override
+    public Map<String, AiClientSystemPromptVO> queryAiClientSystemPromptMapByClientIds(List<String> clientIdList) {
+        List<AiClientSystemPromptVO> systemPromptVOList = AiClientSystemPromptVOByClientIds(clientIdList);
+
+        if(systemPromptVOList == null || systemPromptVOList.isEmpty()){
+            return Collections.emptyMap();
+        }
+
+        return systemPromptVOList.stream()
+                .map(
+                        prompt -> AiClientSystemPromptVO.builder()
+                                .promptId(prompt.getPromptId())
+                                .promptContent(prompt.getPromptContent())
+                                .build()
+                )
+                .collect(
+                        Collectors.toMap(
+                                AiClientSystemPromptVO::getPromptId,
+                                prompt -> prompt,
+                                (existing, replacement) -> existing
+                        )
+                );
     }
 }

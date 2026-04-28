@@ -47,13 +47,13 @@ spring:
         connection-test-query: SELECT 1
   ai:
     openai:
-      base-url: https://yinli.one/
-      api-key: sk-cRlzbpHLjRGp1og0Yx1wAXVen2swjLSyIESQHOqzaLi8pO4t
+      base-url: https://api.minimax.chat
+      api-key: sk-cp-YVzEMxMF8geuvyIF2167rEWpMNmuS5EqArql0bXpsh6t0uhUasojV5hTPclDDEgexoEr6QmKZ83zlCK7ukl_vUXQqbOtFHTgfVjBCW8Dlr-02rmwAXGHPak
       chat:
         options:
-          model: gpt-4.1o
+          model: abab6.5
     rag:
-      embed: text-embedding-ada-002
+      embed: MiniMax-M2.7
 
 # MyBatis 配置【如需使用记得打开】
 #mybatis:

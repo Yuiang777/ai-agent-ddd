@@ -4,6 +4,7 @@ import cn.apple.domain.agent.model.valobj.*;
 import cn.apple.domain.agent.model.valobj.*;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author _apple_sheep_
@@ -29,4 +30,5 @@ public interface IAgentRepository {
 
     List<AiClientModelVO> AiClientModelVOByModelIds(List<String> modelIdList);
 
+    Map<String, AiClientSystemPromptVO> queryAiClientSystemPromptMapByClientIds(List<String> clientIdList);
 }
