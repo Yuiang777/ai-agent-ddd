@@ -9,9 +9,9 @@ services:
     restart: always
     environment:
       TZ: Asia/Shanghai
-      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
     ports:
-      - "13306:3306"
+      - "127.0.0.1:${MYSQL_PORT:-13306}:3306"
     volumes:
       - ./mysql/my.cnf:/etc/mysql/conf.d/mysql.cnf:ro
       - ./mysql/sql:/docker-entrypoint-initdb.d
@@ -29,12 +29,14 @@ services:
     image: registry.cn-hangzhou.aliyuncs.com/xfg-studio/phpmyadmin:5.2.1
     container_name: phpmyadmin
     hostname: phpmyadmin
+    profiles:
+      - admin
     ports:
-      - 8899:80
+      - "127.0.0.1:${PHPMYADMIN_PORT:-8899}:80"
     environment:
       - PMA_HOST=mysql
       - PMA_PORT=3306
-      - MYSQL_ROOT_PASSWORD=123qwe!@#QWE
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
     depends_on:
       mysql:
         condition: service_healthy
@@ -47,9 +49,8 @@ services:
     container_name: redis
     restart: always
     hostname: redis
-    privileged: true
     ports:
-      - 16379:6379
+      - "127.0.0.1:${REDIS_PORT:-16379}:6379"
     volumes:
       - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
     command: redis-server /usr/local/etc/redis/redis.conf
@@ -68,12 +69,14 @@ services:
     container_name: redis-admin
     hostname: redis-commander
     restart: always
+    profiles:
+      - admin
     ports:
-      - 8081:8081
+      - "127.0.0.1:${REDIS_ADMIN_PORT:-8081}:8081"
     environment:
       - REDIS_HOSTS=local:redis:6379
-      - HTTP_USER=admin
-      - HTTP_PASSWORD=admin
+      - HTTP_USER=${REDIS_ADMIN_USER:?REDIS_ADMIN_USER is required}
+      - HTTP_PASSWORD=${REDIS_ADMIN_PASSWORD:?REDIS_ADMIN_PASSWORD is required}
       - LANG=C.UTF-8
       - LANGUAGE=C.UTF-8
       - LC_ALL=C.UTF-8
@@ -89,10 +92,10 @@ services:
     container_name: vector_db
     restart: always
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=ai-rag-knowledge
-      - PGPASSWORD=postgres
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      - POSTGRES_DB=${POSTGRES_DB:-ai-rag-knowledge}
+      - PGPASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     volumes:
       - ./pgvector/sql/init.sql:/docker-entrypoint-initdb.d/init.sql
     logging:
@@ -100,7 +103,7 @@ services:
         max-size: 10m
         max-file: "3"
     ports:
-      - '15432:5432'
+      - '127.0.0.1:${POSTGRES_PORT:-15432}:5432'
     healthcheck:
       test: "pg_isready -U postgres -d ai-rag-knowledge"
       interval: 2s
@@ -114,11 +117,13 @@ services:
     image: dpage/pgadmin4:9.1.0
     container_name: vector_db_admin
     restart: always
+    profiles:
+      - admin
     ports:
-      - "5050:80"
+      - "127.0.0.1:${PGADMIN_PORT:-5050}:80"
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@qq.com
-      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:?PGADMIN_DEFAULT_EMAIL is required}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:?PGADMIN_DEFAULT_PASSWORD is required}
     depends_on:
       - vector_db
     networks:

@@ -69,11 +69,13 @@ public class AiClientNode extends AbstractArmorySupport{
             Advisor[] advisors = advisorList.toArray(new Advisor[]{});
 
 
-            ChatClient chatClient = ChatClient.builder(openAiChatModel)
+            ChatClient.Builder chatClientBuilder = ChatClient.builder(openAiChatModel)
                     .defaultSystem(systemPrompt.toString())
-                    .defaultToolCallbacks(new SyncMcpToolCallbackProvider(mcpSyncClientList.toArray(new McpSyncClient[]{})))
-                    .defaultAdvisors(advisors)
-                    .build();
+                    .defaultAdvisors(advisors);
+            if (!mcpSyncClientList.isEmpty()) {
+                chatClientBuilder.defaultToolCallbacks(new SyncMcpToolCallbackProvider(mcpSyncClientList.toArray(new McpSyncClient[]{})));
+            }
+            ChatClient chatClient = chatClientBuilder.build();
 
             registerBean(beanName(aiClientVO.getClientId()), ChatClient.class, chatClient);
         }

@@ -1,15 +1,15 @@
 package cn.apple.domain.agent.model.valobj;
 
 import cn.apple.domain.agent.service.armory.factory.element.RagAnswerAdvisor;
+import cn.apple.domain.legal.service.LegalHybridRetrievalService;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.aopalliance.aop.Advice;
 import org.springframework.ai.chat.client.advisor.PromptChatMemoryAdvisor;
+import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
-import org.springframework.ai.chat.client.advisor.api.Advisor;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -25,24 +25,27 @@ import java.util.Map;
 @NoArgsConstructor
 public enum  AiClientAdvisorTypeEnumVO {
 
-    RAG_ANSWER("CHAT_MEMORY", "知识库"){
+    CHAT_MEMORY("CHAT_MEMORY", "上下文记忆"){
         @Override
-        public Advisor createAdvisor(AiClientAdvisorVO aiClientAdvisorVO, VectorStore vectorStore) {
+        public Advisor createAdvisor(AiClientAdvisorVO aiClientAdvisorVO, VectorStore vectorStore, LegalHybridRetrievalService legalHybridRetrievalService) {
             AiClientAdvisorVO.ChatMemory chatMemory = aiClientAdvisorVO.getChatMemory();
+            int maxMessages = chatMemory == null || chatMemory.getMaxMessages() <= 0 ? 100 : chatMemory.getMaxMessages();
             return PromptChatMemoryAdvisor.builder(
                     MessageWindowChatMemory.builder()
-                            .maxMessages(chatMemory.getMaxMessages())
+                            .maxMessages(maxMessages)
                             .build()
             ).build();
         }
     },
-    CHAT_MEMORY("RAG_ANSWER", "上下文记忆") {
+    RAG_ANSWER("RAG_ANSWER", "知识库") {
         @Override
-        public Advisor createAdvisor(AiClientAdvisorVO aiClientAdvisorVO, VectorStore vectorStore) {
+        public Advisor createAdvisor(AiClientAdvisorVO aiClientAdvisorVO, VectorStore vectorStore, LegalHybridRetrievalService legalHybridRetrievalService) {
             AiClientAdvisorVO.RagAnswer ragAnswer = aiClientAdvisorVO.getRagAnswer();
-            return new RagAnswerAdvisor(vectorStore, SearchRequest.builder()
-                    .topK(ragAnswer.getTopK())
-                    .filterExpression(ragAnswer.getFilterExpression())
+            int topK = ragAnswer == null || ragAnswer.getTopK() <= 0 ? 4 : ragAnswer.getTopK();
+            String filterExpression = ragAnswer == null ? null : ragAnswer.getFilterExpression();
+            return new RagAnswerAdvisor(vectorStore, legalHybridRetrievalService, SearchRequest.builder()
+                    .topK(topK)
+                    .filterExpression(filterExpression)
                     .build());
         }
     };
@@ -50,7 +53,7 @@ public enum  AiClientAdvisorTypeEnumVO {
     private String code;
     private String info;
 
-    public abstract Advisor createAdvisor(AiClientAdvisorVO aiClientAdvisorVO, VectorStore vectorStore);
+    public abstract Advisor createAdvisor(AiClientAdvisorVO aiClientAdvisorVO, VectorStore vectorStore, LegalHybridRetrievalService legalHybridRetrievalService);
 
 
     private static final Map<String, AiClientAdvisorTypeEnumVO> CODE_MAP = new HashMap<>();

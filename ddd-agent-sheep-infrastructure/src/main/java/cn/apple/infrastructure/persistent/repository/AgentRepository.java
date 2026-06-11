@@ -169,31 +169,41 @@ public class AgentRepository implements IAgentRepository {
 
                     List<AiClientConfig> aiClientConfigs = aiClientConfigDao.queryBySourceTypeAndId(AI_CLIENT_MODEL.getCode(), modelId);
 
-                    for(AiClientConfig aiClientConfig : aiClientConfigs){
-                        String mcpId = aiClientConfig.getTargetId();
-                        if(processedMcpIds.contains(mcpId)){
+                    for (AiClientConfig aiClientConfig : aiClientConfigs){
+                        if (aiClientConfig.getStatus() != 1 || !AI_CLIENT_TOOL_MCP.getCode().equals(aiClientConfig.getTargetType())) {
                             continue;
                         }
+                        String mcpId = aiClientConfig.getTargetId();
+                        if (mcpId == null || mcpId.trim().isEmpty() || processedMcpIds.contains(mcpId)) {
+                            continue;
+                        }
+                        processedMcpIds.add(mcpId);
                         AiClientToolMcp mcp = aiClientToolMcpDao.queryByMcpId(mcpId);
+                        if (mcp == null || mcp.getStatus() != 1) {
+                            log.warn("MCP 配置不存在或未启用, mcpId={}", mcpId);
+                            continue;
+                        }
+
+                        String transportType = mcp.getTransportType();
+                        String transportConfig = mcp.getTransportConfig();
+                        if (transportType == null || transportType.trim().isEmpty() || transportConfig == null || transportConfig.trim().isEmpty()) {
+                            log.warn("MCP 传输配置不完整, mcpId={}", mcpId);
+                            continue;
+                        }
 
                         AiClientToolMcpVO mcpVO = new AiClientToolMcpVO();
                         mcpVO.setMcpId(mcp.getMcpId());
                         mcpVO.setMcpName(mcp.getMcpName());
-                        mcpVO.setTransportType(mcp.getTransportType());
-                        mcpVO.setTransportConfig(mcp.getTransportConfig());
+                        mcpVO.setTransportType(transportType);
+                        mcpVO.setTransportConfig(transportConfig);
                         mcpVO.setRequestTimeout(mcp.getRequestTimeout());
-
-                        String transportType = mcp.getTransportType();
-                        String transportConfig = mcp.getTransportConfig();
 
                         try {
                             if ("sse".equals(transportType)) {
-                                // 解析SSE配置
                                 ObjectMapper objectMapper = new ObjectMapper();
                                 AiClientToolMcpVO.TransportConfigSse transportConfigSse = objectMapper.readValue(transportConfig, AiClientToolMcpVO.TransportConfigSse.class);
                                 mcpVO.setTransportConfigSse(transportConfigSse);
                             } else if ("stdio".equals(transportType)) {
-                                // 解析STDIO配置
                                 Map<String, AiClientToolMcpVO.TransportConfigStdio.Stdio> stdio = JSON.parseObject(transportConfig,
                                         new TypeReference<>() {
                                         });
@@ -202,9 +212,13 @@ public class AgentRepository implements IAgentRepository {
                                 transportConfigStdio.setStdio(stdio);
 
                                 mcpVO.setTransportConfigStdio(transportConfigStdio);
+                            } else {
+                                log.warn("不支持的 MCP 传输类型, mcpId={}, transportType={}", mcpId, transportType);
+                                continue;
                             }
                         } catch (Exception e) {
-                            log.error("解析传输配置失败: {}", e.getMessage(), e);
+                            log.error("解析传输配置失败, mcpId={}, transportType={}: {}", mcpId, transportType, e.getMessage(), e);
+                            continue;
                         }
                         result.add(mcpVO);
 
@@ -298,7 +312,9 @@ public class AgentRepository implements IAgentRepository {
                         } else if ("RAG_ANSWER".equals(aiClientAdvisor.getAdvisorType())) {
                             // 解析ragAnswer配置
                             ragAnswer = JSON.parseObject(extParam, AiClientAdvisorVO.RagAnswer.class);
-                            ragAnswer.setTopK(5);
+                            if (ragAnswer.getTopK() <= 0) {
+                                ragAnswer.setTopK(4);
+                            }
                         }
                     } catch (Exception e) {
                         // 解析失败时忽略，使用默认值null

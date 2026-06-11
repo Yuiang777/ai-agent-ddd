@@ -6,6 +6,7 @@ import cn.apple.domain.agent.service.armory.factory.DefaultArmoryStrategyFactory
 import cn.applesheep.wrench.design.framework.tree.StrategyHandler;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.ai.chat.client.ChatClient;
@@ -18,6 +19,7 @@ import org.springframework.test.context.junit4.SpringRunner;
 import java.util.Arrays;
 
 @Slf4j
+@Ignore("Manual armory integration test. Requires database, model API, and configured client data.")
 @RunWith(SpringRunner.class)
 @SpringBootTest
 public class AgentTest {

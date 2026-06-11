@@ -67,6 +67,10 @@ public abstract class AbstractArmorySupport extends AbstractMultiThreadStrategyR
         return (T) applicationContext.getBean(beanName);
     }
 
+    protected boolean containsBean(String beanName) {
+        return applicationContext.containsBean(beanName);
+    }
+
 
     protected String beanName(String id) {
         return null;

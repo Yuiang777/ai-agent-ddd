@@ -5,13 +5,9 @@ import cn.apple.domain.agent.model.valobj.AiAgentEnumVO;
 import cn.apple.domain.agent.model.valobj.AiClientModelVO;
 import cn.apple.domain.agent.service.armory.factory.DefaultArmoryStrategyFactory;
 import cn.applesheep.wrench.design.framework.tree.StrategyHandler;
-import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.McpSyncClient;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.poi.sl.draw.geom.GuideIf;
-import org.springframework.ai.mcp.SyncMcpToolCallback;
-import org.springframework.ai.mcp.SyncMcpToolCallbackProvider;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.OpenAiApi;
@@ -51,20 +47,24 @@ public class AiClientModeNode extends AbstractArmorySupport{
             //获取模型的tool mcp bean对象
             List<String> toolMcpIdList = aiClientModelVO.getToolMcpIdList();
             List<McpSyncClient> mcpSyncClientList = new ArrayList<>();
-            for(String toolMcpId : toolMcpIdList){
-                McpSyncClient mcpSyncClient = getBean(AiAgentEnumVO.AI_CLIENT_TOOL_MCP.getBeanName(toolMcpId));
-                mcpSyncClientList.add(mcpSyncClient);
+            if (toolMcpIdList != null) {
+                for(String toolMcpId : toolMcpIdList){
+                    String mcpBeanName = AiAgentEnumVO.AI_CLIENT_TOOL_MCP.getBeanName(toolMcpId);
+                    if (!containsBean(mcpBeanName)) {
+                        log.warn("MCP bean 未初始化，跳过模型默认工具绑定, mcpId={}", toolMcpId);
+                        continue;
+                    }
+                    McpSyncClient mcpSyncClient = getBean(mcpBeanName);
+                    mcpSyncClientList.add(mcpSyncClient);
+                }
             }
 
             //实例化模型
             OpenAiChatModel openAiChatModel = OpenAiChatModel.builder()
                     .openAiApi(openAiApi)
-                    .defaultOptions(
-                            OpenAiChatOptions.builder()
-                                    .model(aiClientModelVO.getModelName())
-                                    .toolCallbacks(new SyncMcpToolCallbackProvider(mcpSyncClientList).getToolCallbacks())
-                                    .build()
-                    )
+                    .defaultOptions(OpenAiChatOptions.builder()
+                            .model(aiClientModelVO.getModelName())
+                            .build())
                     .build();
 
             //注册模型

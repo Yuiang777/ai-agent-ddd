@@ -5,6 +5,7 @@ import cn.apple.domain.agent.model.valobj.AiAgentEnumVO;
 import cn.apple.domain.agent.model.valobj.AiClientAdvisorTypeEnumVO;
 import cn.apple.domain.agent.model.valobj.AiClientAdvisorVO;
 import cn.apple.domain.agent.service.armory.factory.DefaultArmoryStrategyFactory;
+import cn.apple.domain.legal.service.LegalHybridRetrievalService;
 import cn.applesheep.wrench.design.framework.tree.StrategyHandler;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +27,8 @@ public class AiClientAdvisorNode extends AbstractArmorySupport{
 
     @Resource
     private VectorStore vectorStore;
+    @Resource
+    private LegalHybridRetrievalService legalHybridRetrievalService;
     @Resource
     private AiClientNode aiClientNode;
     @Override
@@ -49,7 +52,7 @@ public class AiClientAdvisorNode extends AbstractArmorySupport{
     private Advisor createAdvisor(AiClientAdvisorVO aiClientAdvisorVO) {
         String advisorType = aiClientAdvisorVO.getAdvisorType();
         AiClientAdvisorTypeEnumVO byCode = AiClientAdvisorTypeEnumVO.getByCode(advisorType);
-        return byCode.createAdvisor(aiClientAdvisorVO, vectorStore);
+        return byCode.createAdvisor(aiClientAdvisorVO, vectorStore, legalHybridRetrievalService);
     }
 
     @Override

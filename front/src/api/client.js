@@ -1,46 +1,66 @@
 import axios from 'axios'
 
+export const adminToken = import.meta.env.VITE_ADMIN_API_TOKEN || 'dev-token'
+
+export function adminHeaders(headers = {}) {
+  return adminToken ? { ...headers, 'X-Admin-Token': adminToken } : headers
+}
+
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE || '/api',
-  timeout: 15000
+  timeout: Number(import.meta.env.VITE_API_TIMEOUT || 120000)
+})
+
+api.interceptors.request.use(config => {
+  if (adminToken) {
+    config.headers = config.headers || {}
+    config.headers['X-Admin-Token'] = adminToken
+  }
+  return config
 })
 
 async function get(path) {
-  try {
-    const res = await api.get(path)
-    if (res?.data?.success) return res.data.data
-    return res.data
-  } catch {
-    return []
-  }
+  const res = await api.get(path)
+  if (res?.data?.success) return res.data.data
+  if (res?.data?.message) throw new Error(res.data.message)
+  return res.data
 }
 
-export async function fetchAgents() {
-  return get('/config/agents')
+export async function fetchGovernanceOverview() {
+  return get('/governance/overview')
 }
 
-export async function fetchClients() {
-  return get('/config/clients')
+export async function fetchGovernanceEvents() {
+  return get('/governance/events')
 }
 
-export async function fetchModels() {
-  return get('/config/models')
+export async function fetchGovernanceHealth() {
+  return get('/governance/health')
 }
 
-export async function fetchMcpTools() {
-  return get('/config/mcp-tools')
+export async function callToolAgent(payload) {
+  const res = await api.post('/agent/tool-call', payload)
+  if (res?.data?.success) return res.data.data
+  throw new Error(res?.data?.message || '工具 Agent 调用失败')
 }
 
-export async function fetchPrompts() {
-  return get('/config/prompts')
+export async function fetchMultimodalTasks() {
+  return get('/multimodal/tasks')
 }
 
-export async function fetchAdvisors() {
-  return get('/config/advisors')
+export async function fetchMultimodalCapabilities() {
+  return get('/multimodal/capabilities')
 }
 
-export async function fetchRagOrders() {
-  return get('/config/rag-orders')
+export async function callMultimodal(payload) {
+  const form = new FormData()
+  form.append('clientId', payload.clientId)
+  form.append('taskType', payload.taskType)
+  if (payload.prompt) form.append('prompt', payload.prompt)
+  if (payload.file) form.append('file', payload.file)
+  const res = await api.post('/multimodal', form, { headers: { 'Content-Type': 'multipart/form-data' } })
+  if (res?.data?.success) return res.data.data
+  throw new Error(res?.data?.message || '多模态 Agent 调用失败')
 }
 
 export default api

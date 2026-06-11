@@ -9,6 +9,7 @@ import io.modelcontextprotocol.client.transport.HttpClientSseClientTransport;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.ai.chat.client.ChatClient;
@@ -35,6 +36,7 @@ import java.time.LocalDate;
 import java.util.concurrent.CountDownLatch;
 
 @Slf4j
+@Ignore("Manual MCP/SSE integration test. Requires local MCP services and an OpenAI-compatible API key.")
 @RunWith(SpringRunner.class)
 @SpringBootTest
 public class AiAgentTest {
@@ -58,9 +60,14 @@ public class AiAgentTest {
     @Before
     public void init() {
 
+        String apiKey = System.getenv("OPENAI_API_KEY");
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new IllegalStateException("OPENAI_API_KEY is required for manual AiAgentTest");
+        }
+
         OpenAiApi openAiApi = OpenAiApi.builder()
                 .baseUrl("https://yinli.one/")
-                .apiKey("sk-3ghZhkt2KtbJUYU5RXcBrPQ5Q6lPyi8fMrHV7MFWN9iqUasK")
+                .apiKey(apiKey)
                 .embeddingsPath("text-embedding-ada-002")
                 .build();
 
@@ -166,7 +173,7 @@ public class AiAgentTest {
         ChatModel safeChatModel = OpenAiChatModel.builder()
                 .openAiApi(OpenAiApi.builder()
                         .baseUrl("https://yinli.one/")
-                        .apiKey("sk-3ghZhkt2KtbJUYU5RXcBrPQ5Q6lPyi8fMrHV7MFWN9iqUasK")
+                        .apiKey(System.getenv("OPENAI_API_KEY"))
                         .embeddingsPath("text-embedding-ada-002")
                         .build())
                 .defaultOptions(OpenAiChatOptions.builder()

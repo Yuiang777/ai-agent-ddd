@@ -3,6 +3,7 @@ package cn.apple.test.ai;
 import com.alibaba.fastjson.JSON;
 import lombok.extern.slf4j.Slf4j;
 
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -34,6 +35,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 
 @Slf4j
+@Ignore("Manual OpenAI/PgVector integration test. Requires external model API and pgvector.")
 @RunWith(SpringRunner.class)
 @SpringBootTest
 public class OpenAiTest {

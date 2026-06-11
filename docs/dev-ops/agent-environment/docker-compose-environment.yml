@@ -1,127 +1,151 @@
-# 命令执行 docker-compose -f docker-compose-environment-aliyun.yml up -d
-# docker 代理和使用文档；https://bugstack.cn/md/road-map/docker.html
 version: '3.9'
+
 services:
+
+  # ===================== MySQL（生产级优化） =====================
   mysql:
     image: mysql:8.0.32
     container_name: mysql-agent
-    command: --default-authentication-plugin=mysql_native_password
     restart: always
     environment:
       TZ: Asia/Shanghai
-      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-agent_db}
     ports:
-      - "13306:3306"
+      - "127.0.0.1:${MYSQL_PORT:-13306}:3306"
+    command:
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --sql-mode="STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION"
     volumes:
-      - ./mysql/my.cnf:/etc/mysql/conf.d/mysql.cnf:ro
-      - ./mysql/sql:/docker-entrypoint-initdb.d
+      - mysql_data:/var/lib/mysql
+      - ./mysql/my.cnf:/etc/mysql/conf.d/my.cnf:ro
+      - ./mysql/sql:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: [ "CMD", "mysqladmin" ,"ping", "-h", "localhost" ]
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$${MYSQL_ROOT_PASSWORD}"]
       interval: 5s
       timeout: 10s
       retries: 10
-      start_period: 15s
     networks:
       - my-network
 
-  # phpmyadmin https://hub.docker.com/_/phpmyadmin
+  # ===================== phpMyAdmin =====================
   phpmyadmin:
     image: phpmyadmin:5.2.1
     container_name: phpmyadmin-agent
-    hostname: phpmyadmin
+    restart: always
+    profiles:
+      - admin
     ports:
-      - 8899:80
+      - "127.0.0.1:${PHPMYADMIN_PORT:-8899}:80"
     environment:
-      - PMA_HOST=mysql
-      - PMA_PORT=3306
-      - MYSQL_ROOT_PASSWORD=123456
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
     depends_on:
       mysql:
         condition: service_healthy
     networks:
       - my-network
 
-  # Redis
+  # ===================== Redis（AOF + 安全优化） =====================
   redis:
-    image: redis:6.2
+    image: redis:7.0-alpine
     container_name: redis-agent
     restart: always
-    hostname: redis
-    privileged: true
     ports:
-      - 16379:6379
+      - "127.0.0.1:${REDIS_PORT:-16379}:6379"
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      --protected-mode yes
     volumes:
-      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
-    command: redis-server /usr/local/etc/redis/redis.conf
+      - redis_data:/data
     networks:
       - my-network
     healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
+      test: ["CMD-SHELL", "redis-cli -a $${REDIS_PASSWORD} ping"]
       interval: 10s
       timeout: 5s
       retries: 3
 
-  # RedisAdmin https://github.com/joeferner/redis-commander
+  # ===================== Redis 管理工具 =====================
   redis-admin:
     image: spryker/redis-commander:0.8.0
     container_name: redis-agent-admin
-    hostname: redis-commander
     restart: always
+    profiles:
+      - admin
     ports:
-      - 8081:8081
+      - "127.0.0.1:${REDIS_ADMIN_PORT:-8081}:8081"
     environment:
-      - REDIS_HOSTS=local:redis:6379
-      - HTTP_USER=admin
-      - HTTP_PASSWORD=admin
-      - LANG=C.UTF-8
-      - LANGUAGE=C.UTF-8
-      - LC_ALL=C.UTF-8
-    networks:
-      - my-network
+      REDIS_HOSTS: local:redis:6379
+      HTTP_USER: ${REDIS_ADMIN_USER:?REDIS_ADMIN_USER is required}
+      HTTP_PASSWORD: ${REDIS_ADMIN_PASSWORD:?REDIS_ADMIN_PASSWORD is required}
     depends_on:
       redis:
         condition: service_healthy
+    networks:
+      - my-network
 
+  # ===================== pgvector（AI向量数据库） =====================
   vector_db:
     image: pgvector/pgvector:pg16
-    container_name: vector_db-agent
+    container_name: vector-db-agent
     restart: always
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: springai
-      PGPASSWORD: postgres
-    volumes:
-      - ./pgvector/sql/init.sql:/docker-entrypoint-initdb.d/init.sql
-    logging:
-      options:
-        max-size: 10m
-        max-file: "3"
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-springai}
+      TZ: Asia/Shanghai
     ports:
-      - '15432:5432'
+      - "127.0.0.1:${POSTGRES_PORT:-15432}:5432"
+    volumes:
+      - pgvector_data:/var/lib/postgresql/data
+      - ./pgvector/sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres -d springai" ]
-      interval: 2s
-      timeout: 20s
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 10s
       retries: 10
     networks:
       - my-network
 
-  # pg 管理工具
+  # ===================== pgAdmin =====================
   pgadmin:
-    image: registry.cn-hangzhou.aliyuncs.com/xfg-studio/pgadmin4:9.1.0
-    container_name: vector_db_admin-agent
+    image: dpage/pgadmin4:8
+    container_name: vector-db-admin-agent
     restart: always
+    profiles:
+      - admin
     ports:
-      - "5050:80"
+      - "127.0.0.1:${PGADMIN_PORT:-5050}:80"
     environment:
-      PGADMIN_DEFAULT_EMAIL: 3541884319@qq.com
-      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:?PGADMIN_DEFAULT_EMAIL is required}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:?PGADMIN_DEFAULT_PASSWORD is required}
     depends_on:
       - vector_db
     networks:
       - my-network
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama-agent
+    restart: always
+    ports:
+      - "127.0.0.1:${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ./data/ollama:/root/.ollama
+# ===================== 数据卷（持久化核心） =====================
+volumes:
+  mysql_data:
+  redis_data:
+  pgvector_data:
+
+# ===================== 网络隔离 =====================
 networks:
   my-network:
     driver: bridge

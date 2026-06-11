@@ -188,3 +188,19 @@ create table ai_client_tool_mcp
 )
     comment 'MCP客户端配置表';
 
+create table ai_embedding_config
+(
+    id          bigint auto_increment comment '主键ID'
+        primary key,
+    embedding_id varchar(64)                          not null comment 'Embedding配置ID',
+    base_url     varchar(255)                         not null comment 'Embedding Base URL(OpenAI兼容)',
+    api_key      varchar(255)                         not null comment 'Embedding API Key',
+    model        varchar(128)                         not null comment 'Embedding模型名称',
+    status       tinyint(1) default 1                 null comment '状态(0:禁用,1:启用)',
+    create_time  datetime   default CURRENT_TIMESTAMP null comment '创建时间',
+    update_time  datetime   default CURRENT_TIMESTAMP null on update CURRENT_TIMESTAMP comment '更新时间',
+    constraint uk_embedding_id
+        unique (embedding_id)
+)
+    comment 'Embedding配置表(与LLM聊天配置解耦)';
+

@@ -18,7 +18,7 @@ spring:
     mysql:
       username: root
       password: 123456
-      url: jdbc:mysql://127.0.0.1:13306/ai-agent-station?useUnicode=true&characterEncoding=utf8&autoReconnect=true&zeroDateTimeBehavior=convertToNull&serverTimezone=Asia/Shanghai&useSSL=true
+      url: ${MYSQL_URL:jdbc:mysql://127.0.0.1:13306/ai-agent-station?useUnicode=true&characterEncoding=utf8&autoReconnect=true&zeroDateTimeBehavior=convertToNull&serverTimezone=Asia/Shanghai&useSSL=true}
       driver-class-name: com.mysql.cj.jdbc.Driver
       type: com.zaxxer.hikari.HikariDataSource
       hikari:
@@ -33,7 +33,7 @@ spring:
     pgvector:
       username: postgres
       password: postgres
-      url: jdbc:postgresql://127.0.0.1:15432/springai
+      url: ${PGVECTOR_URL:jdbc:postgresql://127.0.0.1:15432/springai}
       driver-class-name: org.postgresql.Driver
       type: com.zaxxer.hikari.HikariDataSource
       hikari:
@@ -45,15 +45,20 @@ spring:
         max-lifetime: 1800000 #此属性控制池中连接的最长生命周期，值0表示无限生命周期，默认1800000即30分钟
         connection-timeout: 30000 #数据库连接超时时间,默认30秒，即30000
         connection-test-query: SELECT 1
+  servlet:
+    multipart:
+      max-file-size: ${APP_UPLOAD_MAX_FILE_SIZE:20MB}
+      max-request-size: ${APP_UPLOAD_MAX_REQUEST_SIZE:20MB}
   ai:
     openai:
-      base-url: https://api.minimax.chat
+      base-url: https://api.minimaxi.com/v1
       api-key: sk-cp-YVzEMxMF8geuvyIF2167rEWpMNmuS5EqArql0bXpsh6t0uhUasojV5hTPclDDEgexoEr6QmKZ83zlCK7ukl_vUXQqbOtFHTgfVjBCW8Dlr-02rmwAXGHPak
       chat:
         options:
-          model: abab6.5
-    rag:
-      embed: MiniMax-M2.7
+          model: MiniMax-M2.7
+      embedding:
+        options:
+          model: abab5-chat
 
 # MyBatis 配置【如需使用记得打开】
 #mybatis:
@@ -67,3 +72,9 @@ logging:
     org:
       mybatis: DEBUG
   config: classpath:logback-spring.xml
+
+app:
+  admin-api:
+    enabled: ${APP_ADMIN_API_ENABLED:false}
+    token: ${APP_ADMIN_API_TOKEN:}
+    protected-patterns: []

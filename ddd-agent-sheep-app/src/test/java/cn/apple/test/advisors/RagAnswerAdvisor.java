@@ -1,14 +1,12 @@
 package cn.apple.test.advisors;
 
-import com.alibaba.fastjson.JSON;
-
 import org.springframework.ai.chat.client.ChatClientRequest;
 import org.springframework.ai.chat.client.ChatClientResponse;
 import org.springframework.ai.chat.client.advisor.api.AdvisorChain;
 import org.springframework.ai.chat.client.advisor.api.BaseAdvisor;
 import org.springframework.ai.chat.client.advisor.api.CallAdvisorChain;
 import org.springframework.ai.chat.client.advisor.api.StreamAdvisorChain;
-import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -35,7 +33,10 @@ public class RagAnswerAdvisor implements BaseAdvisor {
     public RagAnswerAdvisor(VectorStore vectorStore, SearchRequest searchRequest) {
         this.vectorStore = vectorStore;
         this.searchRequest = searchRequest;
-        this.userTextAdvise = "\nContext information is below, surrounded by ---------------------\n\n---------------------\n{question_answer_context}\n---------------------\n\nGiven the context and provided history information and not prior knowledge,\nreply to the user comment. If the answer is not in the context, inform\nthe user that you can't answer the question.\n";
+        this.userTextAdvise = """
+                - 如果【检索资料】为空：正常回答用户问题（可以基于常识与对话历史），但不要编造“来自资料”的引用或法条依据。
+                - 如果【检索资料】不为空：优先基于资料回答，并尽量引用原文关键句；资料不足时说明不足并向用户追问缺失信息。
+                """;
     }
 
     @Override
@@ -43,7 +44,6 @@ public class RagAnswerAdvisor implements BaseAdvisor {
         HashMap<String, Object> context = new HashMap(chatClientRequest.context());
 
         String userText = chatClientRequest.prompt().getUserMessage().getText();
-        String advisedUserText = userText + System.lineSeparator() + this.userTextAdvise;
 
         String query = (new PromptTemplate(userText)).render();
 
@@ -55,8 +55,20 @@ public class RagAnswerAdvisor implements BaseAdvisor {
         Map<String, Object> advisedUserParams = new HashMap(chatClientRequest.context());
         advisedUserParams.put("question_answer_context", documentContext);
 
+        String retrievalContextText = (documentContext == null || documentContext.isBlank()) ? "（空）" : documentContext;
+        String appendText = System.lineSeparator()
+                + System.lineSeparator()
+                + this.userTextAdvise
+                + System.lineSeparator()
+                + "【检索资料】"
+                + System.lineSeparator()
+                + retrievalContextText;
+
+        Prompt prompt = chatClientRequest.prompt().copy()
+                .augmentSystemMessage(existing -> new SystemMessage(existing.getText() + appendText));
+
         return ChatClientRequest.builder()
-                .prompt(Prompt.builder().messages(new UserMessage(advisedUserText), new AssistantMessage(JSON.toJSONString(advisedUserParams))).build())
+                .prompt(prompt)
                 .context(advisedUserParams)
                 .build();
     }

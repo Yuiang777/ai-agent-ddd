@@ -10,7 +10,11 @@ export default function Layout({ children }) {
       <SideNav open={open} onToggle={() => setOpen(v => !v)} />
       <Box sx={{ flex: 1 }}>
         <NavBar onMenu={() => setOpen(v => !v)} />
-        <Box sx={{ p: 3 }}>{children}</Box>
+        <Box sx={{ p: { xs: 2, md: 3 }, minWidth: 0 }}>
+          <Box sx={{ maxWidth: 1440, mx: 'auto', width: '100%' }}>
+            {children}
+          </Box>
+        </Box>
       </Box>
     </Box>
   )

@@ -66,7 +66,14 @@ public class AiClientLoadDataStrategy implements ILordDataStrategy {
         }, threadPoolExecutor);
 
 
-        CompletableFuture.allOf(aiClientApiListFuture).thenRun(() -> {
+        CompletableFuture.allOf(
+                aiClientApiListFuture,
+                aiClientModelListFuture,
+                aiClientToolMcpListFuture,
+                aiClientSystemPromptListFuture,
+                aiClientAdvisorListFuture,
+                aiClientListFuture
+        ).thenRun(() -> {
             dynamicContext.setValue(AiAgentEnumVO.AI_CLIENT_API.getDataName(), aiClientApiListFuture.join());
             dynamicContext.setValue(AiAgentEnumVO.AI_CLIENT_MODEL.getDataName(), aiClientModelListFuture.join());
             dynamicContext.setValue(AiAgentEnumVO.AI_CLIENT_SYSTEM_PROMPT.getDataName(), aiClientSystemPromptListFuture.join());
