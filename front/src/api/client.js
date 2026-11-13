@@ -1,6 +1,8 @@
 import axios from 'axios'
 
-export const adminToken = import.meta.env.VITE_ADMIN_API_TOKEN || 'dev-token'
+// Production identity must come from the authenticated gateway/session. A token
+// is only sent when explicitly configured for a local integration environment.
+export const adminToken = String(import.meta.env.VITE_ADMIN_API_TOKEN || '').trim()
 
 export function adminHeaders(headers = {}) {
   return adminToken ? { ...headers, 'X-Admin-Token': adminToken } : headers
@@ -21,9 +23,13 @@ api.interceptors.request.use(config => {
 
 async function get(path) {
   const res = await api.get(path)
-  if (res?.data?.success) return res.data.data
-  if (res?.data?.message) throw new Error(res.data.message)
-  return res.data
+  if (res?.data?.success === true && res.data.data !== undefined && res.data.data !== null) return res.data.data
+  throw new Error(res?.data?.message || '服务响应格式异常，未返回有效数据')
+}
+
+export function modelAvailability(readiness) {
+  const status = readiness?.capabilities?.model_runtime?.status
+  return status === 'DISABLED' ? 'disabled' : ['CONFIGURED_UNVERIFIED', 'READY'].includes(status) ? 'configured' : 'unknown'
 }
 
 export async function fetchGovernanceOverview() {
@@ -36,6 +42,34 @@ export async function fetchGovernanceEvents() {
 
 export async function fetchGovernanceHealth() {
   return get('/governance/health')
+}
+
+export async function fetchGovernanceReadiness() {
+  return get('/governance/readiness')
+}
+
+export async function fetchBillingAccount() {
+  return get('/billing/account')
+}
+
+export async function fetchBillingUsage() {
+  return get('/billing/usage')
+}
+
+export async function fetchBillingPlans() {
+  return get('/billing/plans')
+}
+
+export async function fetchLegalDocumentStats() {
+  return get('/legal/documents/stats')
+}
+
+export async function fetchLegalMatters() {
+  return get('/legal/matters')
+}
+
+export async function fetchLegalReviewQueue() {
+  return get('/legal/matters/review-queue')
 }
 
 export async function callToolAgent(payload) {

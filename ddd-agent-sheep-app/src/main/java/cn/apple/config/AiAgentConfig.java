@@ -1,5 +1,6 @@
 package cn.apple.config;
 
+import cn.apple.domain.legal.model.valobj.LegalKnowledgeMetadata;
 import org.springframework.ai.openai.OpenAiEmbeddingModel;
 import org.springframework.ai.openai.OpenAiEmbeddingOptions;
 import org.springframework.ai.openai.api.OpenAiApi;
@@ -10,6 +11,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
@@ -22,26 +24,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Configuration
+@ConditionalOnProperty(name = "app.infrastructure.enabled", havingValue = "true")
 public class AiAgentConfig {
 
-    /**
-     * -- 删除旧的表（如果存在）
-     * DROP TABLE IF EXISTS public.vector_store_openai;
-     * <p>
-     * -- 创建新的表，使用UUID作为主键
-     * CREATE TABLE public.vector_store_openai (
-     * id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-     * content TEXT NOT NULL,
-     * metadata JSONB,
-     * embedding VECTOR(1536)
-     * );
-     * <p>
-     * SELECT * FROM vector_store_openai
-     */
     @Bean("vectorStore")
     public PgVectorStore pgVectorStore(@Value("${spring.ai.embedding.base-url:${spring.ai.openai.base-url}}") String embeddingBaseUrl,
                                        @Value("${spring.ai.embedding.api-key:${spring.ai.openai.api-key}}") String embeddingApiKey,
                                        @Value("${spring.ai.embedding.model:}") String embeddingModel,
+                                       @Value("${app.legal.knowledge.vector-table:"
+                                               + LegalKnowledgeMetadata.DEFAULT_VECTOR_TABLE + "}") String vectorTable,
                                        @Qualifier("mysqlDataSource") DataSource mysqlDataSource,
                                        @Qualifier("pgVectorJdbcTemplate") JdbcTemplate jdbcTemplate) {
 
@@ -75,7 +66,7 @@ public class AiAgentConfig {
         }
 
         return PgVectorStore.builder(jdbcTemplate, openAiEmbeddingModel)
-                .vectorTableName("vector_store_openai")
+                .vectorTableName(validateVectorTableName(vectorTable))
                 .build();
     }
 
@@ -142,6 +133,14 @@ public class AiAgentConfig {
             throw new IllegalStateException("Embedding baseUrl 缺少协议或协议不支持（仅支持 http/https）：baseUrl=" + v);
         }
         return v;
+    }
+
+    private String validateVectorTableName(String value) {
+        String checked = value == null ? "" : value.trim();
+        if (!checked.matches("[a-z_][a-z0-9_]*")) {
+            throw new IllegalStateException("app.legal.knowledge.vector-table 必须是小写 SQL 标识符");
+        }
+        return checked;
     }
 
     private RestClient.Builder openAiRestClientBuilder() {

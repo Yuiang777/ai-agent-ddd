@@ -40,7 +40,7 @@ public class ArmoryDebugController {
                 try {
                     aiClientRuntimeService.getChatClient(checkedClientId);
                 } catch (Exception e) {
-                    assembleError = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+                    assembleError = "MODEL_ASSEMBLY_FAILED";
                 }
             }
 
@@ -97,13 +97,13 @@ public class ArmoryDebugController {
                     client,
                     maskApis(apis),
                     models,
-                    mcps,
+                    summarizeMcps(mcps),
                     prompts,
                     advisors,
                     beans
             ));
         } catch (Exception e) {
-            return ApiResponse.error(e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
+            return ApiResponse.error("ARMORY_DIAGNOSTIC_FAILED");
         }
     }
 
@@ -121,16 +121,16 @@ public class ArmoryDebugController {
     }
 
     private String mask(String value) {
-        if (value == null) {
-            return null;
-        }
-        String v = value.trim();
-        if (v.length() <= 8) {
-            return "****";
-        }
-        return v.substring(0, 4) + "****" + v.substring(v.length() - 4);
+        return value == null || value.isBlank() ? null : "****";
     }
 
+    private List<McpItem> summarizeMcps(List<AiClientToolMcpVO> mcps) {
+        if (mcps == null) return List.of();
+        return mcps.stream().map(mcp -> new McpItem(mcp.getMcpId(), mcp.getMcpName(),
+                mcp.getTransportType(), mcp.getRequestTimeout())).toList();
+    }
+
+    public record McpItem(String mcpId, String mcpName, String transportType, Integer requestTimeout) { }
     private BeanItem beanItem(String beanName) {
         boolean exists = applicationContext.containsBean(beanName);
         String type = null;
@@ -168,7 +168,7 @@ public class ArmoryDebugController {
                                  AiClientVO client,
                                  List<ApiItem> apis,
                                  List<AiClientModelVO> models,
-                                 List<AiClientToolMcpVO> mcps,
+                                 List<McpItem> mcps,
                                  List<AiClientSystemPromptVO> prompts,
                                  List<AiClientAdvisorVO> advisors,
                                  List<BeanItem> beans) {

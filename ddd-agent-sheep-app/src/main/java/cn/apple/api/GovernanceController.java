@@ -1,6 +1,7 @@
 package cn.apple.api;
 
 import cn.apple.application.governance.GovernanceAuditService;
+import cn.apple.application.governance.EnterpriseReadinessService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,6 +15,7 @@ import java.util.List;
 public class GovernanceController {
 
     private final GovernanceAuditService governanceAuditService;
+    private final EnterpriseReadinessService enterpriseReadinessService;
 
     @GetMapping("/overview")
     public ApiResponse<GovernanceOverview> overview() {
@@ -38,6 +40,11 @@ public class GovernanceController {
         GovernanceAuditService.GovernanceMetrics metrics = governanceAuditService.metrics();
         String status = metrics.failedRequests() > metrics.successRequests() ? "degraded" : "ok";
         return ApiResponse.ok(new GovernanceHealth(status, metrics.activeClients(), metrics.rateLimitedRequests()));
+    }
+
+    @GetMapping("/readiness")
+    public ApiResponse<EnterpriseReadinessService.ReadinessReport> readiness() {
+        return ApiResponse.ok(enterpriseReadinessService.report());
     }
 
     public record GovernanceOverview(long totalRequests,

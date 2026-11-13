@@ -27,6 +27,12 @@
             <scope>provided</scope>
         </dependency>
 
+        <dependency>
+            <groupId>io.minio</groupId>
+            <artifactId>minio</artifactId>
+            <version>8.5.17</version>
+        </dependency>
+
         <!-- 系统模块 -->
         <dependency>
             <groupId>cn.apple</groupId>

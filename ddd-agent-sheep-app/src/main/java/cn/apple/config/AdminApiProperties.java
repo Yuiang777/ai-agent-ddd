@@ -10,9 +10,13 @@ public class AdminApiProperties {
     private boolean enabled;
     private String token;
     private Set<String> protectedPatterns = Set.of(
+            "/api/chat",
             "/api/agent/**",
             "/api/governance/**",
-            "/api/legal/documents/ingest",
+            "/api/legal/documents/**",
+            "/api/legal/agent/**",
+            "/api/legal/matters/**",
+            "/api/billing/**",
             "/api/multimodal/**",
             "/api/workflows/**"
     );

@@ -5,8 +5,9 @@ public enum WorkflowEventType {
     NODE_STARTED,
     NODE_OUTPUT,
     NODE_COMPLETED,
+    NODE_SKIPPED,
     NODE_FAILED,
+    REVIEW_REQUIRED,
     WORKFLOW_COMPLETED,
     WORKFLOW_FAILED
 }
-

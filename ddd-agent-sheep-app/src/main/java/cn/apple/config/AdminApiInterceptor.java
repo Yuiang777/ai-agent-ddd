@@ -25,7 +25,7 @@ public class AdminApiInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
-        if (!requiresAdmin(request.getRequestURI())) {
+        if (!requiresAdmin(request)) {
             return true;
         }
         String expected = properties.getToken() == null ? "" : properties.getToken().trim();
@@ -41,8 +41,15 @@ public class AdminApiInterceptor implements HandlerInterceptor {
         return true;
     }
 
-    private boolean requiresAdmin(String uri) {
-        return properties.getProtectedPatterns().stream().anyMatch(pattern -> pathMatcher.match(pattern, uri));
+    private boolean requiresAdmin(HttpServletRequest request) {
+        String normalizedUri = request == null || request.getRequestURI() == null ? "" : request.getRequestURI();
+        String contextPath = request == null ? "" : request.getContextPath();
+        if (contextPath != null && !contextPath.isBlank() && normalizedUri.startsWith(contextPath)) {
+            normalizedUri = normalizedUri.substring(contextPath.length());
+        }
+        String path = normalizedUri;
+        return properties.getProtectedPatterns() != null
+                && properties.getProtectedPatterns().stream().anyMatch(pattern -> pathMatcher.match(pattern, path));
     }
 
     private void writeError(HttpServletResponse response, int status, String message) throws Exception {

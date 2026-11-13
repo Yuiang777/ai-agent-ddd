@@ -45,7 +45,7 @@ export default function Governance() {
   ]
 
   return (
-    <PageShell title="治理中心" subtitle="查看请求统计、健康状态和最近审计事件。">
+    <PageShell title="治理中心" subtitle="查看当前进程的调用诊断，统计尚未按租户隔离；正式事项记录请查看法律事项时间线。">
       <Grid container spacing={2}>
         {statItems.map(([title, value]) => (
           <Grid item xs={12} sm={6} md={3} key={title}>
@@ -57,10 +57,10 @@ export default function Governance() {
         ))}
       </Grid>
       {error ? <Alert severity="error">{error}</Alert> : null}
-      <Alert severity={health?.status === 'degraded' ? 'warning' : 'success'}>
-        当前状态：{health?.status || 'unknown'}，活跃客户端：{health?.activeClients ?? '—'}
+      <Alert severity={!health || health.status === 'degraded' ? 'warning' : 'info'}>
+        当前状态：{health?.status || '待确认'}，活跃客户端：{health?.activeClients ?? '—'}
       </Alert>
-      <SectionCard title="最近审计事件" description="展示最近的治理、限流和调用审计记录。">
+      <SectionCard title="最近调用诊断" description="进程内诊断日志，不构成持久、不可变的正式审计档案。">
         <DataTable columns={columns} rows={events} rowKey={(row) => `${row.timestamp || ''}-${row.clientId || ''}-${row.costMs || ''}-${row.detail || ''}`} />
       </SectionCard>
     </PageShell>

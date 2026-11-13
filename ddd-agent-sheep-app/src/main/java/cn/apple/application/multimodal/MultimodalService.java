@@ -3,6 +3,8 @@ package cn.apple.application.multimodal;
 import cn.apple.application.agent.AiClientRuntimeService;
 import cn.apple.application.governance.GovernanceAuditService;
 import cn.apple.config.UploadFileValidator;
+import cn.apple.config.TenantContext;
+import cn.apple.domain.legal.matter.MatterActorRole;
 import cn.apple.domain.agent.adapter.repository.IAgentRepository;
 import cn.apple.domain.agent.model.valobj.AiAgentEnumVO;
 import cn.apple.domain.agent.model.valobj.AiClientModelVO;
@@ -10,6 +12,7 @@ import cn.apple.domain.agent.model.valobj.AiClientToolMcpVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -30,6 +33,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class MultimodalService {
 
     private static final int MAX_TASKS = 200;
+    private static final int MAX_PROMPT_LENGTH = 20000;
     private static final String MINIMAX_IMAGE_MCP_ID = "minimax-image-understand";
     private static final AtomicBoolean MCP_TOOLS_LOGGED = new AtomicBoolean(false);
 
@@ -39,28 +43,58 @@ public class MultimodalService {
     private final IAgentRepository agentRepository;
     private final ApplicationContext applicationContext;
     private final Path storageRoot;
-    private final Map<String, MultimodalTask> taskMap = new ConcurrentHashMap<>();
+    private final boolean securityContextEnabled;
+    private final Map<String, OwnedTask> taskMap = new ConcurrentHashMap<>();
     private final ArrayDeque<String> taskOrder = new ArrayDeque<>();
 
+    @Autowired
     public MultimodalService(AiClientRuntimeService aiClientRuntimeService,
                              GovernanceAuditService governanceAuditService,
                              UploadFileValidator uploadFileValidator,
                              IAgentRepository agentRepository,
                              ApplicationContext applicationContext,
-                             @Value("${multimodal.storage-root:./data/multimodal}") String storageRoot) {
+                             @Value("${multimodal.storage-root:./data/multimodal}") String storageRoot,
+                             @Value("${app.enterprise.security-context-enabled:false}") boolean securityContextEnabled) {
         this.aiClientRuntimeService = aiClientRuntimeService;
         this.governanceAuditService = governanceAuditService;
         this.uploadFileValidator = uploadFileValidator;
         this.agentRepository = agentRepository;
         this.applicationContext = applicationContext;
         this.storageRoot = Path.of(storageRoot).toAbsolutePath().normalize();
+        this.securityContextEnabled = securityContextEnabled;
+    }
+
+    public MultimodalService(AiClientRuntimeService runtime, GovernanceAuditService audit,
+                             UploadFileValidator validator, IAgentRepository repository,
+                             ApplicationContext context, String storageRoot) {
+        this(runtime, audit, validator, repository, context, storageRoot, false);
+    }
+
+    public void requireAccess() {
+        currentOwner();
+    }
+
+    private TaskOwner currentOwner() {
+        TenantContext.Principal principal = TenantContext.current();
+        if (principal == null && !securityContextEnabled) {
+            return new TaskOwner("offline-tenant", "offline-user");
+        }
+        if (principal == null) throw new SecurityException("MULTIMODAL_IDENTITY_REQUIRED");
+        if (principal.role() != MatterActorRole.LAWYER && principal.role() != MatterActorRole.PARALEGAL) {
+            throw new SecurityException("MULTIMODAL_STAFF_REQUIRED");
+        }
+        return new TaskOwner(principal.tenantId(), principal.actorId());
     }
 
     public MultimodalTask submit(String clientId, String taskType, String prompt, MultipartFile file) throws Exception {
+        TaskOwner owner = currentOwner();
         long start = System.currentTimeMillis();
         String checkedClientId = required(clientId, "clientId");
         String checkedTaskType = required(taskType, "taskType");
         String checkedPrompt = prompt == null ? "" : prompt.trim();
+        if (checkedPrompt.length() > MAX_PROMPT_LENGTH) {
+            throw new IllegalArgumentException("prompt 过长");
+        }
         if (!governanceAuditService.allowRequest(checkedClientId)) {
             governanceAuditService.recordChat(checkedClientId, checkedPrompt, false, System.currentTimeMillis() - start, "multimodal_rate_limited");
             throw new IllegalStateException("请求过于频繁，请稍后再试");
@@ -76,7 +110,7 @@ public class MultimodalService {
         String taskId = UUID.randomUUID().toString().replace("-", "");
         MultimodalTask task = new MultimodalTask(taskId, checkedClientId, checkedTaskType, checkedPrompt, assetUrl,
                 "running", null, null, null, 0L, LocalDateTime.now(), LocalDateTime.now());
-        putTask(task);
+        putTask(task, owner);
 
         try {
             String content = switch (checkedTaskType) {
@@ -88,15 +122,15 @@ public class MultimodalService {
             };
             long costMs = System.currentTimeMillis() - start;
             task = task.success(content, costMs);
-            putTask(task);
+            putTask(task, owner);
             governanceAuditService.recordChat(checkedClientId, checkedPrompt, true, costMs, "multimodal_" + checkedTaskType + "_ok");
             return task;
         } catch (Exception e) {
             long costMs = System.currentTimeMillis() - start;
-            task = task.failed(e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage(), costMs);
-            putTask(task);
+            task = task.failed("MULTIMODAL_EXECUTION_FAILED", costMs);
+            putTask(task, owner);
             governanceAuditService.recordChat(checkedClientId, checkedPrompt, false, costMs, "multimodal_" + checkedTaskType + "_failed");
-            log.error("multimodal task failed, taskId={}, clientId={}, taskType={}", taskId, checkedClientId, checkedTaskType, e);
+            log.error("multimodal task failed, taskId={}, errorType={}", taskId, e.getClass().getSimpleName());
             return task;
         } finally {
             deleteAssetQuietly(assetPath);
@@ -104,23 +138,32 @@ public class MultimodalService {
     }
 
     public List<MultimodalTask> recentTasks() {
+        TaskOwner owner = currentOwner();
         synchronized (taskOrder) {
-            return taskOrder.stream().map(taskMap::get).filter(t -> t != null)
+            return taskOrder.stream().map(taskMap::get)
+                    .filter(entry -> entry != null && entry.owner().equals(owner))
+                    .map(OwnedTask::task)
                     .sorted(Comparator.comparing(MultimodalTask::createTime).reversed())
                     .toList();
         }
     }
 
     public MultimodalTask getTask(String taskId) {
-        return taskMap.get(taskId);
+        TaskOwner owner = currentOwner();
+        OwnedTask entry = taskMap.get(taskId);
+        return entry != null && entry.owner().equals(owner) ? entry.task() : null;
     }
 
     public Path resolveAsset(String fileName) {
-        Path path = storageRoot.resolve(Path.of(fileName).getFileName()).normalize();
-        if (!path.startsWith(storageRoot)) {
-            return null;
-        }
-        return path;
+        TaskOwner owner = currentOwner();
+        if (fileName == null || !fileName.matches("[A-Za-z0-9._-]+")) return null;
+        String assetUrl = "/api/multimodal/assets/" + fileName;
+        boolean owned = taskMap.values().stream().anyMatch(entry -> entry.owner().equals(owner)
+                && (assetUrl.equals(entry.task().inputAssetUrl()) || assetUrl.equals(entry.task().outputAssetUrl())));
+        if (!owned) return null;
+        Path path = storageRoot.resolve(fileName).normalize();
+        return path.startsWith(storageRoot) && Files.isRegularFile(path, java.nio.file.LinkOption.NOFOLLOW_LINKS)
+                ? path : null;
     }
 
     public MediaType mediaType(Path path) {
@@ -156,32 +199,28 @@ public class MultimodalService {
         if (prompt == null || prompt.isBlank()) {
             throw new IllegalArgumentException("图片生成需要输入提示词");
         }
-        ChatClient chatClient = aiClientRuntimeService.getChatClient(clientId);
         String instruction = "你是图片生成 Agent。当前系统还没有接入真实图片生成模型时，请先把用户需求改写为可直接发给图片生成模型的高质量提示词，包含主体、风格、镜头、构图、光线、尺寸建议和负面提示词。用户需求：" + prompt;
-        return chatClient.prompt(instruction).call().content();
+        return aiClientRuntimeService.invokeText(clientId, "image-prompt", instruction);
     }
 
     private String recognizeVideoPlan(String clientId, String prompt, Path assetPath) throws Exception {
         if (assetPath == null) {
             throw new IllegalArgumentException("视频识别需要上传视频");
         }
-        ChatClient chatClient = aiClientRuntimeService.getChatClient(clientId);
         String instruction = "你是视频理解 Agent。当前收到视频文件：" + assetPath.getFileName()
                 + "。请基于用户需求输出视频理解方案、建议抽帧点、需要识别的对象/OCR/场景和最终摘要结构。用户需求：" + (prompt == null ? "" : prompt);
-        return chatClient.prompt(instruction).call().content();
+        return aiClientRuntimeService.invokeText(clientId, "video-understanding", instruction);
     }
 
     private String generateVideoPlan(String clientId, String prompt) throws Exception {
         if (prompt == null || prompt.isBlank()) {
             throw new IllegalArgumentException("视频生成需要输入提示词");
         }
-        ChatClient chatClient = aiClientRuntimeService.getChatClient(clientId);
         String instruction = "你是视频生成 Agent。当前系统还没有接入真实视频生成模型时，请先输出可执行的视频生成脚本，包括分镜、画面、动作、时长、镜头、音效、字幕和负面提示词。用户需求：" + prompt;
-        return chatClient.prompt(instruction).call().content();
+        return aiClientRuntimeService.invokeText(clientId, "video-prompt", instruction);
     }
 
     private McpSyncClient imageUnderstandingMcpClient(String clientId) throws Exception {
-        aiClientRuntimeService.getChatClient(clientId);
         List<AiClientModelVO> models = agentRepository.AiClientModelVOByClientIds(List.of(clientId));
         String mcpId = models == null ? null : models.stream()
                 .filter(model -> model.getToolMcpIdList() != null)
@@ -347,8 +386,13 @@ public class MultimodalService {
         String suffix = uploadFileValidator.validateAndExtension(file);
         Files.createDirectories(storageRoot);
         Path target = Files.createTempFile(storageRoot, "multimodal-", suffix).normalize();
-        Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
-        return target;
+        try (java.io.InputStream input = file.getInputStream()) {
+            Files.copy(input, target, StandardCopyOption.REPLACE_EXISTING);
+            return target;
+        } catch (Exception e) {
+            Files.deleteIfExists(target);
+            throw e;
+        }
     }
 
     private void deleteAssetQuietly(Path assetPath) {
@@ -361,13 +405,13 @@ public class MultimodalService {
                 Files.deleteIfExists(path);
             }
         } catch (Exception e) {
-            log.warn("delete multimodal temp asset failed: {}", e.getMessage());
+            log.warn("delete multimodal temp asset failed, errorType={}", e.getClass().getSimpleName());
         }
     }
 
-    private void putTask(MultimodalTask task) {
-        taskMap.put(task.taskId(), task);
+    private void putTask(MultimodalTask task, TaskOwner owner) {
         synchronized (taskOrder) {
+            taskMap.put(task.taskId(), new OwnedTask(owner, task));
             taskOrder.remove(task.taskId());
             taskOrder.addFirst(task.taskId());
             while (taskOrder.size() > MAX_TASKS) {
@@ -384,6 +428,10 @@ public class MultimodalService {
         }
         return checked;
     }
+
+    private record TaskOwner(String tenantId, String actorId) { }
+
+    private record OwnedTask(TaskOwner owner, MultimodalTask task) { }
 
     public record MultimodalTask(String taskId,
                                  String clientId,

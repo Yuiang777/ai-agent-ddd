@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Primary;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -15,6 +16,7 @@ import javax.sql.DataSource;
 import java.util.Objects;
 
 @Configuration
+@ConditionalOnProperty(name = "app.infrastructure.enabled", havingValue = "true")
 public class DataSourceConfig {
 
     @Bean("mysqlDataSource")

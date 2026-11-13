@@ -1,6 +1,7 @@
 package cn.apple.domain.agent.service.armory.factory.element;
 
 import cn.apple.domain.legal.model.valobj.LegalEvidence;
+import cn.apple.domain.legal.model.valobj.LegalKnowledgeMetadata;
 import cn.apple.domain.legal.model.valobj.LegalRetrievalRequest;
 import cn.apple.domain.legal.service.LegalHybridRetrievalService;
 import org.springframework.ai.chat.client.ChatClientRequest;
@@ -12,7 +13,6 @@ import org.springframework.ai.chat.client.advisor.api.StreamAdvisorChain;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
-import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.Filter;
@@ -77,11 +77,26 @@ public class RagAnswerAdvisor implements BaseAdvisor {
 
         String userText = chatClientRequest.prompt().getUserMessage().getText();
 
-        String query = (new PromptTemplate(userText)).render();
-        
-        SearchRequest searchRequestToUse = SearchRequest.from(this.searchRequest).query(query).filterExpression(this.doGetFilterExpression(context)).build();
+        // The user message is data, not a PromptTemplate. Legal contracts commonly contain
+        // braces and must not be interpreted as missing template variables.
+        String query = userText == null ? "" : userText;
+
+        SearchRequest searchRequestToUse;
+        try {
+            searchRequestToUse = SearchRequest.from(this.searchRequest)
+                    .query(query)
+                    .filterExpression(this.doGetFilterExpression(context))
+                    .build();
+        } catch (RuntimeException error) {
+            context.put("qa_retrieval_error", error.getMessage() == null
+                    ? error.getClass().getSimpleName()
+                    : error.getMessage());
+            searchRequestToUse = SearchRequest.from(this.searchRequest).query(query).build();
+        }
         List<LegalEvidence> evidences;
-        String retrievalError = null;
+        String retrievalError = context.get("qa_retrieval_error") == null
+                ? null
+                : String.valueOf(context.get("qa_retrieval_error"));
         try {
             evidences = retrieveEvidence(query, context, searchRequestToUse);
         } catch (Exception e) {
@@ -116,7 +131,9 @@ public class RagAnswerAdvisor implements BaseAdvisor {
                 + System.lineSeparator()
                 + "【检索证据】"
                 + System.lineSeparator()
-                + retrievalContextText;
+                + "<untrusted_data label=\"retrieval_evidence\">\n"
+                + retrievalContextText
+                + "\n</untrusted_data>";
 
         Prompt prompt = chatClientRequest.prompt().copy()
                 .augmentSystemMessage(existing -> new SystemMessage(existing.getText() + appendText));
@@ -130,6 +147,10 @@ public class RagAnswerAdvisor implements BaseAdvisor {
     }
 
     private List<LegalEvidence> retrieveEvidence(String query, HashMap<String, Object> context, SearchRequest searchRequestToUse) {
+        if (legalHybridRetrievalService == null && context.containsKey("qa_retrieval_error")) {
+            // A malformed filter must never fall back to an unfiltered vector query.
+            return List.of();
+        }
         if (legalHybridRetrievalService != null) {
             return legalHybridRetrievalService.retrieve(new LegalRetrievalRequest(
                     query,
@@ -141,15 +162,17 @@ public class RagAnswerAdvisor implements BaseAdvisor {
         }
         return vectorStore.similaritySearch(searchRequestToUse).stream()
                 .map(document -> new LegalEvidence(
-                        String.valueOf(document.getMetadata().getOrDefault("id", "")),
+                        document.getId() == null || document.getId().isBlank()
+                                ? String.valueOf(document.getMetadata().getOrDefault("id", ""))
+                                : document.getId(),
                         document.getText(),
-                        String.valueOf(document.getMetadata().getOrDefault("doc_id", "")),
-                        String.valueOf(document.getMetadata().getOrDefault("doc_name", "")),
-                        String.valueOf(document.getMetadata().getOrDefault("law_name", "")),
-                        String.valueOf(document.getMetadata().getOrDefault("article_no", "")),
-                        String.valueOf(document.getMetadata().getOrDefault("clause_no", "")),
-                        parseInt(document.getMetadata().get("chunk_index")),
-                        String.valueOf(document.getMetadata().getOrDefault("source_path", "")),
+                        String.valueOf(document.getMetadata().getOrDefault(LegalKnowledgeMetadata.DOC_ID, "")),
+                        String.valueOf(document.getMetadata().getOrDefault(LegalKnowledgeMetadata.DOC_NAME, "")),
+                        String.valueOf(document.getMetadata().getOrDefault(LegalKnowledgeMetadata.LAW_NAME, "")),
+                        String.valueOf(document.getMetadata().getOrDefault(LegalKnowledgeMetadata.ARTICLE_NO, "")),
+                        String.valueOf(document.getMetadata().getOrDefault(LegalKnowledgeMetadata.CLAUSE_NO, "")),
+                        parseInt(document.getMetadata().get(LegalKnowledgeMetadata.CHUNK_INDEX)),
+                        String.valueOf(document.getMetadata().getOrDefault(LegalKnowledgeMetadata.SOURCE_PATH, "")),
                         0.0,
                         document.getMetadata()))
                 .toList();
@@ -159,7 +182,7 @@ public class RagAnswerAdvisor implements BaseAdvisor {
         if (context.containsKey("qa_filter_expression") && StringUtils.hasText(context.get("qa_filter_expression").toString())) {
             return context.get("qa_filter_expression").toString();
         }
-        return searchRequest.getFilterExpression() == null ? null : searchRequest.getFilterExpression().toString();
+        return LegalRetrievalRequest.serializeSupportedFilter(searchRequest.getFilterExpression());
     }
 
     private String formatEvidence(List<LegalEvidence> evidences) {

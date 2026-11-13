@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.file.Files;
@@ -22,21 +24,29 @@ public class MultimodalController {
 
     private final MultimodalService multimodalService;
     private final ModelCapabilityService modelCapabilityService;
+    private final String modelClientId;
 
-    public MultimodalController(MultimodalService multimodalService, ModelCapabilityService modelCapabilityService) {
+    @Autowired
+    public MultimodalController(MultimodalService multimodalService, ModelCapabilityService modelCapabilityService,
+                                @Value("${multimodal.model-client-id:${workflow.model-client-id:law-consultant}}") String modelClientId) {
         this.multimodalService = multimodalService;
         this.modelCapabilityService = modelCapabilityService;
+        this.modelClientId = modelClientId == null || modelClientId.isBlank() ? "law-consultant" : modelClientId.trim();
+    }
+
+    public MultimodalController(MultimodalService multimodalService, ModelCapabilityService modelCapabilityService) {
+        this(multimodalService, modelCapabilityService, "law-consultant");
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<MultimodalService.MultimodalTask> submit(
-            @RequestParam("clientId") String clientId,
+            @RequestParam(value = "clientId", required = false) String ignoredClientId,
             @RequestParam("taskType") String taskType,
             @RequestParam(value = "prompt", required = false) String prompt,
             @RequestParam(value = "file", required = false) MultipartFile file
     ) {
         try {
-            return ApiResponse.ok(multimodalService.submit(clientId, taskType, prompt, file));
+            return ApiResponse.ok(multimodalService.submit(modelClientId, taskType, prompt, file));
         } catch (Exception e) {
             return ApiResponse.error(buildErrorMessage(e));
         }
@@ -44,21 +54,32 @@ public class MultimodalController {
 
     @GetMapping("/capabilities")
     public ApiResponse<?> capabilities() {
-        return ApiResponse.ok(modelCapabilityService.capabilities());
+        try {
+            multimodalService.requireAccess();
+            return ApiResponse.ok(modelCapabilityService.capabilities());
+        } catch (Exception error) {
+            return ApiResponse.error(buildErrorMessage(error));
+        }
     }
 
     @GetMapping("/tasks")
     public ApiResponse<?> tasks() {
-        return ApiResponse.ok(multimodalService.recentTasks());
+        try {
+            return ApiResponse.ok(multimodalService.recentTasks());
+        } catch (Exception error) {
+            return ApiResponse.error(buildErrorMessage(error));
+        }
     }
 
     @GetMapping("/tasks/{taskId}")
     public ApiResponse<?> task(@PathVariable String taskId) {
-        MultimodalService.MultimodalTask task = multimodalService.getTask(taskId);
-        if (task == null) {
-            return ApiResponse.error("任务不存在");
+        try {
+            MultimodalService.MultimodalTask task = multimodalService.getTask(taskId);
+            if (task == null) return ApiResponse.error("任务不存在");
+            return ApiResponse.ok(task);
+        } catch (Exception error) {
+            return ApiResponse.error(buildErrorMessage(error));
         }
-        return ApiResponse.ok(task);
     }
 
     @GetMapping("/assets/{fileName:.+}")
@@ -69,25 +90,14 @@ public class MultimodalController {
                 return ResponseEntity.notFound().build();
             }
             return ResponseEntity.ok().contentType(multimodalService.mediaType(path)).body(new UrlResource(path.toUri()));
+        } catch (SecurityException e) {
+            return ResponseEntity.status(403).body("MULTIMODAL_ACCESS_DENIED");
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(buildErrorMessage(e));
         }
     }
 
     private String buildErrorMessage(Exception e) {
-        if (e == null) {
-            return "unknown";
-        }
-        String msg = e.getMessage() == null ? "" : e.getMessage();
-        Throwable cause = e.getCause();
-        String causeMsg = cause == null || cause.getMessage() == null ? "" : cause.getMessage();
-        String causeType = cause == null ? "" : cause.getClass().getSimpleName();
-        if (!causeType.isBlank() && !causeMsg.isBlank() && !causeMsg.equals(msg)) {
-            return e.getClass().getSimpleName() + ": " + msg + " | cause=" + causeType + ": " + causeMsg;
-        }
-        if (!causeType.isBlank() && causeMsg.isBlank() && !causeType.equals(e.getClass().getSimpleName())) {
-            return e.getClass().getSimpleName() + ": " + msg + " | cause=" + causeType;
-        }
-        return e.getClass().getSimpleName() + ": " + msg;
+        return e instanceof SecurityException ? "MULTIMODAL_ACCESS_DENIED" : "MULTIMODAL_REQUEST_FAILED";
     }
 }

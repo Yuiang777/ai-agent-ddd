@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -26,6 +27,7 @@ import static cn.apple.domain.agent.model.valobj.AiAgentEnumVO.*;
  */
 @Slf4j
 @Repository
+@ConditionalOnProperty(name = "app.infrastructure.enabled", havingValue = "true")
 public class AgentRepository implements IAgentRepository {
 
     @Resource

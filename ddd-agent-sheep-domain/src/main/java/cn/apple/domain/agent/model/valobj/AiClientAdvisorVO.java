@@ -54,6 +54,11 @@ public class AiClientAdvisorVO {
     @NoArgsConstructor
     public static class ChatMemory {
         private int maxMessages;
+        private int maxCharacters;
+        private int summaryCharacters;
+        private int recentMessages;
+        private int maxConversations;
+        private long conversationTtlSeconds;
     }
 
     @Data

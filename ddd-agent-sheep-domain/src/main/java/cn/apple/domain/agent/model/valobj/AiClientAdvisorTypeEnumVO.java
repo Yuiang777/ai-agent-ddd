@@ -1,13 +1,13 @@
 package cn.apple.domain.agent.model.valobj;
 
 import cn.apple.domain.agent.service.armory.factory.element.RagAnswerAdvisor;
+import cn.apple.domain.agent.service.memory.CompactingChatMemory;
 import cn.apple.domain.legal.service.LegalHybridRetrievalService;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.springframework.ai.chat.client.advisor.PromptChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
-import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 
@@ -29,17 +29,24 @@ public enum  AiClientAdvisorTypeEnumVO {
         @Override
         public Advisor createAdvisor(AiClientAdvisorVO aiClientAdvisorVO, VectorStore vectorStore, LegalHybridRetrievalService legalHybridRetrievalService) {
             AiClientAdvisorVO.ChatMemory chatMemory = aiClientAdvisorVO.getChatMemory();
-            int maxMessages = chatMemory == null || chatMemory.getMaxMessages() <= 0 ? 100 : chatMemory.getMaxMessages();
+            int maxMessages = positive(chatMemory == null ? 0 : chatMemory.getMaxMessages(), 40);
+            int maxCharacters = positive(chatMemory == null ? 0 : chatMemory.getMaxCharacters(), 12000);
+            int summaryCharacters = positive(chatMemory == null ? 0 : chatMemory.getSummaryCharacters(), 2400);
+            int recentMessages = positive(chatMemory == null ? 0 : chatMemory.getRecentMessages(), 12);
+            int maxConversations = positive(chatMemory == null ? 0 : chatMemory.getMaxConversations(), 1000);
+            long conversationTtlSeconds = positive(chatMemory == null ? 0 : chatMemory.getConversationTtlSeconds(), 3600L);
             return PromptChatMemoryAdvisor.builder(
-                    MessageWindowChatMemory.builder()
-                            .maxMessages(maxMessages)
-                            .build()
+                    new CompactingChatMemory(maxMessages, maxCharacters, summaryCharacters, recentMessages,
+                            maxConversations, conversationTtlSeconds)
             ).build();
         }
     },
     RAG_ANSWER("RAG_ANSWER", "知识库") {
         @Override
         public Advisor createAdvisor(AiClientAdvisorVO aiClientAdvisorVO, VectorStore vectorStore, LegalHybridRetrievalService legalHybridRetrievalService) {
+            if (vectorStore == null) {
+                throw new IllegalStateException("vector store is disabled; enable app.infrastructure.enabled before assembling RAG advisors");
+            }
             AiClientAdvisorVO.RagAnswer ragAnswer = aiClientAdvisorVO.getRagAnswer();
             int topK = ragAnswer == null || ragAnswer.getTopK() <= 0 ? 4 : ragAnswer.getTopK();
             String filterExpression = ragAnswer == null ? null : ragAnswer.getFilterExpression();
@@ -57,6 +64,14 @@ public enum  AiClientAdvisorTypeEnumVO {
 
 
     private static final Map<String, AiClientAdvisorTypeEnumVO> CODE_MAP = new HashMap<>();
+
+    private static int positive(int value, int fallback) {
+        return value > 0 ? value : fallback;
+    }
+
+    private static long positive(long value, long fallback) {
+        return value > 0 ? value : fallback;
+    }
 
     static {
         for (AiClientAdvisorTypeEnumVO value : values()) {

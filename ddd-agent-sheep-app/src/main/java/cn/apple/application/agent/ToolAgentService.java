@@ -1,15 +1,18 @@
 package cn.apple.application.agent;
 
 import cn.apple.application.governance.GovernanceAuditService;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
+
 public class ToolAgentService {
+
+    private static final int MAX_CLIENT_ID_LENGTH = 128;
+    private static final int MAX_MESSAGE_LENGTH = 20000;
 
     private static final String TOOL_AGENT_SYSTEM_PROMPT = """
             你是一个法律顾问 Agent。
@@ -22,16 +25,31 @@ public class ToolAgentService {
 
     private final AiClientRuntimeService aiClientRuntimeService;
     private final GovernanceAuditService governanceAuditService;
+    private final String modelClientId;
+
+    @Autowired
+    public ToolAgentService(AiClientRuntimeService runtime, GovernanceAuditService audit,
+                            @Value("${tool-agent.model-client-id:${workflow.model-client-id:law-consultant}}") String modelClientId) {
+        this.aiClientRuntimeService = runtime;
+        this.governanceAuditService = audit;
+        this.modelClientId = modelClientId == null || modelClientId.isBlank()
+                ? "law-consultant" : modelClientId.trim();
+    }
+
+    public ToolAgentService(AiClientRuntimeService runtime, GovernanceAuditService audit) {
+        this(runtime, audit, "law-consultant");
+    }
 
     public ToolAgentResponse execute(ToolAgentRequest request) {
         long start = System.currentTimeMillis();
-        String clientId = request == null || request.clientId() == null ? "" : request.clientId().trim();
+        // The legacy request clientId is never trusted to select tools or models.
+        String clientId = modelClientId;
         String message = request == null || request.message() == null ? "" : request.message().trim();
-        if (clientId.isEmpty()) {
-            throw new IllegalArgumentException("clientId 不能为空");
-        }
         if (message.isEmpty()) {
             throw new IllegalArgumentException("message 不能为空");
+        }
+        if (message.length() > MAX_MESSAGE_LENGTH) {
+            throw new IllegalArgumentException("message 过长");
         }
         if (!governanceAuditService.allowRequest(clientId)) {
             governanceAuditService.recordChat(clientId, message, false, System.currentTimeMillis() - start, "tool_agent_rate_limited");
@@ -39,17 +57,32 @@ public class ToolAgentService {
         }
 
         try {
-            ChatClient chatClient = aiClientRuntimeService.getChatClient(clientId);
-            String content = chatClient.prompt(TOOL_AGENT_SYSTEM_PROMPT + "\n\n用户任务：\n" + message).call().content();
+            String content = aiClientRuntimeService.invokeToolText(
+                    clientId,
+                    "tool-agent",
+                    TOOL_AGENT_SYSTEM_PROMPT + "\n\n用户任务：\n" + message
+            );
             long costMs = System.currentTimeMillis() - start;
             governanceAuditService.recordChat(clientId, message, true, costMs, "tool_agent_ok");
             return new ToolAgentResponse(clientId, content, costMs);
         } catch (Exception e) {
             long costMs = System.currentTimeMillis() - start;
             governanceAuditService.recordChat(clientId, message, false, costMs, "tool_agent_" + e.getClass().getSimpleName());
-            log.error("tool agent failed, clientId={}, costMs={}", clientId, costMs, e);
-            throw new IllegalStateException(e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage(), e);
+            log.error("tool agent failed, clientId={}, costMs={}, errorType={}", clientId, costMs, e.getClass().getSimpleName());
+            throw new IllegalStateException(safeModelError(e));
         }
+    }
+
+    private String safeModelError(Exception error) {
+        if (error instanceof IllegalStateException) {
+            String code = error.getMessage();
+            if ("MODEL_RUNTIME_DISABLED".equals(code)
+                    || "MODEL_CONCURRENCY_LIMIT".equals(code)
+                    || "MODEL_CIRCUIT_OPEN".equals(code)) {
+                return code;
+            }
+        }
+        return "MODEL_INVOCATION_FAILED";
     }
 
     public record ToolAgentRequest(String clientId, String message) {
@@ -58,4 +91,3 @@ public class ToolAgentService {
     public record ToolAgentResponse(String clientId, String content, long costMs) {
     }
 }
-

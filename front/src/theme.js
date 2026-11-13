@@ -3,71 +3,58 @@ import { createTheme } from '@mui/material/styles'
 const theme = createTheme({
   palette: {
     mode: 'light',
-    primary: { main: '#1E3A8A' },
-    secondary: { main: '#B45309' },
-    background: { default: '#F6F7FB', paper: 'rgba(255,255,255,0.78)' },
-    text: { primary: '#0B1220' }
+    primary: { main: '#173B63', dark: '#102A46', light: '#E8EFF6', contrastText: '#FFFFFF' },
+    secondary: { main: '#8A6B43', light: '#F1EBE1' },
+    error: { main: '#B54745' },
+    warning: { main: '#B77932' },
+    success: { main: '#34745B' },
+    info: { main: '#3C6F91' },
+    background: { default: '#F3F5F7', paper: '#FFFFFF' },
+    text: { primary: '#202A36', secondary: '#66717D' },
+    divider: '#DDE3E8'
   },
-  shape: { borderRadius: 16 },
+  shape: { borderRadius: 12 },
   typography: {
-    fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial',
-    h4: { fontWeight: 800, letterSpacing: '-0.02em' },
-    h5: { fontWeight: 800, letterSpacing: '-0.02em' },
-    h6: { fontWeight: 800, letterSpacing: '-0.01em' },
-    subtitle1: { fontWeight: 700 },
-    button: { textTransform: 'none', fontWeight: 700 }
+    fontFamily: 'Inter, "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, Segoe UI, sans-serif',
+    h4: { fontWeight: 650, letterSpacing: '-0.035em', lineHeight: 1.2 },
+    h5: { fontWeight: 650, letterSpacing: '-0.025em', lineHeight: 1.25 },
+    h6: { fontWeight: 650, letterSpacing: '-0.015em', lineHeight: 1.35 },
+    subtitle1: { fontWeight: 600 },
+    subtitle2: { fontWeight: 600 },
+    body1: { lineHeight: 1.7 },
+    body2: { lineHeight: 1.65 },
+    button: { textTransform: 'none', fontWeight: 600, letterSpacing: 0 }
   },
   components: {
     MuiCssBaseline: {
       styleOverrides: {
-        body: {
-          backgroundImage: [
-            'radial-gradient(1200px 800px at 10% 0%, rgba(30,58,138,0.18), transparent 60%)',
-            'radial-gradient(900px 700px at 95% 10%, rgba(180,83,9,0.16), transparent 55%)',
-            'radial-gradient(1200px 900px at 50% 110%, rgba(99,102,241,0.10), transparent 55%)'
-          ].join(','),
-          backgroundAttachment: 'fixed'
-        }
+        body: { backgroundColor: '#F3F5F7' },
+        '*': { boxSizing: 'border-box' },
+        '::selection': { backgroundColor: '#DCE6EF' }
       }
     },
     MuiAppBar: {
       defaultProps: { elevation: 0, color: 'transparent' },
-      styleOverrides: {
-        root: {
-          backdropFilter: 'blur(14px)',
-          borderBottom: '1px solid rgba(15, 23, 42, 0.10)'
-        }
-      }
+      styleOverrides: { root: { backgroundColor: '#FFFFFF', borderBottom: '1px solid #DDE3E8', color: '#202A36' } }
     },
     MuiDrawer: {
-      styleOverrides: {
-        paper: {
-          backgroundColor: 'rgba(255,255,255,0.72)',
-          backdropFilter: 'blur(16px)',
-          borderRight: '1px solid rgba(15, 23, 42, 0.10)'
-        }
-      }
+      styleOverrides: { paper: { backgroundColor: '#FFFFFF', borderRight: '1px solid #DDE3E8' } }
     },
     MuiCard: {
       defaultProps: { elevation: 0 },
-      styleOverrides: {
-        root: {
-          border: '1px solid rgba(15, 23, 42, 0.10)',
-          backgroundImage: 'linear-gradient(180deg, rgba(255,255,255,0.92), rgba(255,255,255,0.70))',
-          backdropFilter: 'blur(16px)'
-        }
-      }
+      styleOverrides: { root: { border: '1px solid #DDE3E8', backgroundImage: 'none', borderRadius: 8, boxShadow: '0 1px 3px rgba(28,39,50,0.04)' } }
     },
     MuiButton: {
-      styleOverrides: {
-        root: {
-          borderRadius: 12
-        }
-      }
+      styleOverrides: { root: { borderRadius: 6, minHeight: 38, paddingInline: 15, boxShadow: 'none' } }
     },
-    MuiTextField: {
-      defaultProps: { size: 'small' }
-    }
+    MuiTextField: { defaultProps: { size: 'small', variant: 'outlined' } },
+    MuiOutlinedInput: { styleOverrides: { root: { borderRadius: 6, backgroundColor: '#FFFFFF' } } },
+    MuiChip: { styleOverrides: { root: { borderRadius: 7, fontWeight: 600 } } },
+    MuiTableCell: {
+      styleOverrides: { head: { fontWeight: 650, color: '#46515D', backgroundColor: '#F5F7F9' }, root: { borderColor: '#E4E9ED' } }
+    },
+    MuiPaper: { styleOverrides: { rounded: { borderRadius: 8 } } },
+    MuiAlert: { styleOverrides: { root: { borderRadius: 8 } } }
   }
 })
 

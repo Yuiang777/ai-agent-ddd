@@ -12,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.util.List;
 
@@ -25,12 +26,15 @@ import java.util.List;
 @Service
 public class AiClientAdvisorNode extends AbstractArmorySupport{
 
-    @Resource
-    private VectorStore vectorStore;
+    private final ObjectProvider<VectorStore> vectorStoreProvider;
     @Resource
     private LegalHybridRetrievalService legalHybridRetrievalService;
     @Resource
     private AiClientNode aiClientNode;
+
+    public AiClientAdvisorNode(ObjectProvider<VectorStore> vectorStoreProvider) {
+        this.vectorStoreProvider = vectorStoreProvider;
+    }
     @Override
     protected String doApply(ArmoryCommandEntity armoryCommandEntity, DefaultArmoryStrategyFactory.DynamicContext dynamicContext) throws Exception {
 
@@ -52,6 +56,7 @@ public class AiClientAdvisorNode extends AbstractArmorySupport{
     private Advisor createAdvisor(AiClientAdvisorVO aiClientAdvisorVO) {
         String advisorType = aiClientAdvisorVO.getAdvisorType();
         AiClientAdvisorTypeEnumVO byCode = AiClientAdvisorTypeEnumVO.getByCode(advisorType);
+        VectorStore vectorStore = vectorStoreProvider.getIfAvailable();
         return byCode.createAdvisor(aiClientAdvisorVO, vectorStore, legalHybridRetrievalService);
     }
 

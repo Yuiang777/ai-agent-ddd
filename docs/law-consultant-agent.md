@@ -2,8 +2,8 @@
 
 ## 版本
 
-- 当前版本：v1.1
-- 本次更新：将法律能力拆分为 domain / app / infrastructure，并补充多智能体雏形说明。
+- 当前版本：v1.2
+- 本次更新：补充文档清洗、可配置切片、查询重写、二阶段重排序和查询感知上下文压缩。
 - 适用范围：`ddd-agent-sheep` 当前主分支代码。
 
 ## 目标
@@ -108,30 +108,26 @@ data/legal/manifest/law-documents-manifest.json
 
 因此不能只用默认 `TokenTextSplitter` 直接切，否则可能把条号和正文切散，也可能让模型误把 `第三条之二` 当成 `第三条` 的第二款。
 
-当前入库服务采用法条感知切片：
+当前入库服务按 `corpus_type` 采用语料感知切片：
 
-1. 先用正则识别条文边界：
+1. 逐行识别 `编 / 分编 / 章 / 节 / 条`，条号必须出现在行首，兼容中文数字、全角数字和阿拉伯数字。正文中的“依据本条第一款”不会被误判为切片边界，`第三条` 和 `第三条之二` 也会保持为两个独立条文。
 
-```text
-第[一二三四五六七八九十百千万零〇两]+条(?:之[一二三四五六七八九十百千万零〇两]+)?
-```
+2. 条内按自然段识别“款”，按 `（一）`、`1.` 等序号识别“项”。项级 chunk 会重复带上所属款的引导句，避免只召回一个孤立选项。
 
-该规则会把 `第三条` 和 `第三条之二` 识别为两个不同的 article key。
+3. `PUBLIC_CASE` 不解析法条，而是按审理经过、诉辩主张、本院查明、本院认为、裁判结果等裁判文书章节切分。
 
-2. 再在条内识别款：
+4. `FIRM_KNOWLEDGE` 和 `MATTER_PRIVATE` 按 Markdown 标题、编号标题、编章节目及合同条款建立章节树；没有标题时才使用“正文”路径。连续同级标题保持为兄弟章节。
 
-```text
-第[一二三四五六七八九十百千万零〇两]+款
-```
-
-3. 每个 chunk 都会补充上下文前缀：
+5. 每个 chunk 都会补充上下文前缀：
 
 ```text
 《法律名称》 第三条 第二款：正文...
 《法律名称》 第三条之二：正文...
+【（2026）京01民终100号民事判决书.pdf / 本院认为】：正文...
+【案件代理方案.md / 事实梳理 / 争议焦点】：正文...
 ```
 
-4. 每个 chunk 的 metadata 会写入：
+6. 每个 chunk 的 metadata 会写入：
 
 - `knowledge = law-consultant`
 - `doc_id`
@@ -140,9 +136,37 @@ data/legal/manifest/law-documents-manifest.json
 - `article_no`
 - `clause_no`
 - `chunk_index`
+- `chunk_count`
+- `chunk_schema_version`
 - `source_path`
+- `source_checksum`
+- `document_version`
+- `parent_ref`、`section_path`（法规层级或普通文档章节路径）
+- `ingestion_status`（仅 `active` 可被检索）
+- `ingestion_source = legal-filesystem`（限定换版和孤儿清理的所有者边界）
+- `ingestion_run_id`
 
-5. 如果单条过长，再做长度切分；切分后的每段仍然带同样的法律名称、条、款前缀，避免语义丢失。
+7. 如果单条或章节过长，优先在句号、分号或换行处切分，并从完整句边界保留有限重叠；每段仍带相同的层级前缀。
+
+8. 入库按文档版本增量执行。版本指纹包含语料类型、切片 schema、最大长度和重叠量；未变化且分片完整时不重复计算 embedding。变化内容先分批写入 `staging`，全部校验后再统一激活，随后清理旧版本和已经从原始目录删除的文档。
+
+9. 中文关键词召回使用 PostgreSQL `pg_trgm`，并对法名和条号精确命中加权；它与向量召回共享知识域、租户、激活状态及受支持业务过滤。
+
+预处理还会清除 BOM、零宽字符、非法控制字符、分页重复页眉页脚和独立页码；能够从“施行日期/生效日期/自某日起施行”中提取 `effective_date`。`max-chars` 和 `overlap-chars` 会写入切片版本指纹，调参后自动触发文档重新分片和 embedding，避免沿用不兼容的旧向量。
+
+检索阶段先根据法律领域路由生成受限的语义重写查询，再分别执行向量召回和 `pg_trgm` 词法召回，通过 RRF 合并候选。当前 PostgreSQL 词法分支不是严格 BM25；如需中文 BM25，应接入带中文分析器的 OpenSearch/Elasticsearch，或部署支持 BM25 的 PostgreSQL 扩展，并保持 `ILegalEvidenceRepository` 返回契约不变。
+
+RRF 后通过 `ILegalEvidenceReranker` 执行二阶段重排序。默认实现综合融合分、query/chunk 二元字符覆盖、法名及条款精确命中、领域路由和可追溯性打分，并在 metadata 中写入 `fusion_score`、`rerank_score`、`rerank_strategy`。后续接入 cross-encoder 时替换该端口即可，不需要改动检索编排。
+
+检索证据进入模型前还会执行有界上下文拼装：先覆盖不同文档来源，再回填同文档高分证据；同一文档的重叠句会去重，并按原始 query 保留高相关句及相邻句。超预算内容使用带显式省略标记的句界压缩，不会静默截成半句话。
+
+可调参数：
+
+- `APP_LEGAL_CHUNK_MAX_CHARS`：单块最大字符数，默认 `1200`，允许 `400-4000`。
+- `APP_LEGAL_CHUNK_OVERLAP_CHARS`：长条文切分重叠字符数，默认 `120`，必须小于块大小的一半。
+- `APP_LEGAL_CONTEXT_BUDGET_CHARS`：最终证据上下文预算，默认 `6000`。
+- `APP_LEGAL_MAX_CHARS_PER_EVIDENCE`：单条证据进入上下文的字符上限，默认 `1400`。
+- `APP_LEGAL_MAX_EVIDENCE_PER_DOCUMENT`：单文档最多进入上下文的证据数，默认 `4`。
 
 ## 如何知道 RAG 有效
 
@@ -217,8 +241,8 @@ baseline 是对比组，用来证明 RAG 是否真的提升质量。
 
 首版工具配置：
 
-- RAG：`RAG_ANSWER` advisor，filter 为 `knowledge == 'law-consultant'`。
-- Chat Memory：`CHAT_MEMORY` advisor，保留短期上下文。
+- RAG：`RAG_ANSWER` advisor 的种子配置保留 `knowledge == 'law-consultant'`；仓储层还会强制合并 `ingestion_status == 'active'` 和可选租户条件，不能由调用方覆盖。
+- Chat Memory：`CHAT_MEMORY` advisor 使用字符预算和消息数双重上限。最近消息原样保留，较早消息按角色压缩为有界摘要；会话按租户、操作者和前端对话 ID 隔离，并通过 TTL 与最大会话数限制内存占用。旧配置只提供 `maxMessages` 时仍兼容，完整 `extParam` 示例：`{"maxMessages":40,"maxCharacters":12000,"summaryCharacters":2400,"recentMessages":12,"maxConversations":1000,"conversationTtlSeconds":3600}`。
 - Governance Audit：已有治理接口记录请求、耗时、失败和限流。
 
 首版不默认绑定 MCP 工具。原因是本地 MCP SSE 服务未启动时会导致 Agent 装配失败。后续如果需要外部检索、法院案例库、企业内部系统，再按需接入 MCP。
@@ -259,7 +283,7 @@ docs/dev-ops/agent-environment/mysql/sql/law-consultant-agent-seed.sql
 
 #### 层级索引（Parent-Child Retrieval）：感觉可以用这个处理法律合同
 
-#### Hybrid Search 混合检索：BM25 负责精确匹配，通过 RRF（Reciprocal Rank Fusion 倒数排序融合）算法，把两边的结果合并成一个排序。处理法律条文
+#### Hybrid Search 混合检索：当前工程以 pg_trgm 负责词法匹配，通过 RRF（Reciprocal Rank Fusion 倒数排序融合）算法，把两边的结果合并成一个排序。大规模阶段再接 OpenSearch 中文 BM25。
 
 #### Reranking 精排
 
@@ -292,11 +316,11 @@ docs/dev-ops/agent-environment/mysql/sql/law-consultant-agent-seed.sql
 ### 先把“证据化”打牢（你现在项目就差这一步）
 - 目标：每个答案必须能落到 chunk 的 law_name/article_no/clause_no
 - 你现在已经做了“法条感知切片”，这是优势（避免“第三条之二”混淆）
-### 1）Hybrid Search（BM25 + 向量）+ RRF（强烈推荐第一阶段就上）
-- 解决：法律条文的“精确条款/关键词”命中率（BM25）+ 语义召回（向量）
+### 1）Hybrid Search（词法 + 向量）+ RRF（已完成基线）
+- 解决：法律条文的“精确条款/关键词”命中率（当前为 pg_trgm，目标为 BM25）+ 语义召回（向量）
 - RRF 优点：不用训练、实现简单、融合稳定，直接提升 topK 质量
 - 工程落点：
-  - 先把法条/合同 chunk 写入一个可 BM25 搜的索引（ES/OpenSearch 或 PostgreSQL full-text）
+  - 当前法条/合同 chunk 使用 PostgreSQL `pg_trgm`；规模扩大后写入带中文分析器的 OpenSearch BM25 索引
   - 向量库继续用 pgvector
   - 结果按 RRF 合并，输出统一的候选证据集
 ### 2）Reranking 精排（第二阶段）
@@ -342,6 +366,3 @@ docs/dev-ops/agent-environment/mysql/sql/law-consultant-agent-seed.sql
 ### 8）Speculative RAG + 多模态（最后阶段）
 - Speculative RAG 适合“低延迟+高并发”，但工程复杂度最高（并行草稿 + 验证）
 - 多模态 RAG（合同扫描件、图片、PDF）更依赖 OCR/版面解析质量，建议在检索/纠错成熟后再上
-
-
-
