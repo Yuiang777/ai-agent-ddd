@@ -43,12 +43,19 @@ try {
 
   await page.route('**/api/workflows/run/stream', route => route.fulfill({ contentType: 'text/event-stream', body: 'event: NODE_OUTPUT\ndata: {"runId":"SIMULATED","data":{"text":"不完整的模拟报告"}}\n\n' }))
   await page.goto(`${origin}/workflow`)
-  await page.getByRole('button', { name: '流式执行（SSE）', exact: true }).click()
+  await page.getByRole('button', { name: '实时执行', exact: true }).click()
   await page.getByText(/工作流连接已结束，但未返回完成事件/).waitFor()
   assert.equal(await page.getByText('不完整的模拟报告', { exact: true }).count(), 0)
   assert.equal(await page.getByRole('button', { name: '确认登记为报告新版本', exact: true }).count(), 0)
   pass('Truncated SSE cannot be registered as a completed report')
 
+  await page.unroute('**/api/workflows/run/stream')
+  await page.route('**/api/workflows/run/stream', route => route.fulfill({ contentType: 'text/event-stream', body: 'event: WORKFLOW_COMPLETED\ndata: {"data":{"status":"SUCCESS","finalOutput":"SIMULATED-DRAFT"}}\n\n' + 'event: WORKFLOW_COMPLETED\ndata: {"data":{"status":"INVALID"}}\n\n' }))
+  await page.getByRole('button', { name: '实时执行', exact: true }).click()
+  await page.getByText(/工作流未返回有效结束状态/).waitFor()
+  assert.equal(await page.getByText('SIMULATED-DRAFT', { exact: true }).count(), 0)
+  assert.equal(await page.getByRole('button', { name: '确认登记为报告新版本', exact: true }).count(), 0)
+  pass('A later invalid SSE event clears an earlier completed draft')
   let completeWorkflow = false
   await page.route('**/api/workflows/run', route => route.fulfill({ json: { success: true, data: {
     runId: 'SIMULATED-REGISTRATION', finalOutput: '【模拟报告】用于登记并发验证，不构成法律意见。',
@@ -129,7 +136,7 @@ try {
   assert.equal(await page.getByRole('button', { name: '开始审查', exact: true }).isDisabled(), true)
   pass('Real offline model status disables contract analysis')
   await page.route('**/api/governance/readiness', route => route.fulfill({ json: { success: true, data: { capabilities: {} } } }))
-  for (const [route, action] of [['/chat', '发送问题'], ['/contract-review', '开始审查'], ['/agent-studio', '运行现有 Agent'], ['/tool-agent', '调用工具 Agent'], ['/multimodal', '提交任务']]) {
+  for (const [route, action] of [['/chat', '发送问题'], ['/contract-review', '开始审查'], ['/agent-studio', '运行服务测试'], ['/tool-agent', '调用工具 Agent'], ['/multimodal', '提交任务']]) {
     await page.goto(origin + route, { waitUntil: 'networkidle' })
     assert.equal(await page.getByRole('button', { name: action, exact: true }).isDisabled(), true)
   }

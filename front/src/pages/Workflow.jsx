@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { Alert, AlertTitle, Box, Button, Chip, Grid, Stack, TextField, Typography } from '@mui/material'
-import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded'
+import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded'
 import UploadFileRoundedIcon from '@mui/icons-material/UploadFileRounded'
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded'
 import FactCheckRoundedIcon from '@mui/icons-material/FactCheckRounded'
@@ -11,7 +11,7 @@ import PageShell from '../components/PageShell'
 import SectionCard from '../components/SectionCard'
 import { adminHeaders } from '../api/client'
 import { readSseEvents } from '../api/sse'
-import { validateWorkflowResult, finalizedWorkflowReport } from '../api/workflowResult'
+import { validateWorkflowResult, finalizedWorkflowReport, isPublishableWorkflowResult, displayableItems, displayableCitations, displayableReviewReasons } from '../api/workflowResult'
 import ReportRegistration from '../components/matters/ReportRegistration'
 
 function nowId() {
@@ -26,10 +26,74 @@ function safeJsonParse(value) {
   }
 }
 
+const reportMarkdownComponents = {
+  table: ({ children }) => <Box role="region" aria-label="报告表格" tabIndex={0} sx={{ maxWidth: '100%', overflowX: 'auto', my: 1 }}><table>{children}</table></Box>,
+  img: ({ alt }) => <Typography component="span" variant="caption" color="text.secondary">[外部图片未加载{alt ? `：${alt}` : ''}]</Typography>,
+  a: ({ href, children }) => {
+    try {
+      if (typeof href !== 'string' || !href.trim()) throw new Error('missing href')
+      const url = new URL(href, window.location.origin)
+      if (!['http:', 'https:'].includes(url.protocol)) throw new Error('unsupported protocol')
+      return <a href={url.toString()} target="_blank" rel="noreferrer noopener">{children}</a>
+    } catch {
+      return <Typography component="span" color="text.secondary">{children}</Typography>
+    }
+  }
+}
+
+const nodeStatusPresentation = {
+  idle: { label: '待执行', color: 'default' },
+  running: { label: '执行中', color: 'warning' },
+  success: { label: '已完成', color: 'success' },
+  skipped: { label: '已跳过', color: 'default' },
+  failed: { label: '执行失败', color: 'error' }
+}
+
+const eventLabels = {
+  WORKFLOW_STARTED: '流程开始',
+  NODE_STARTED: '节点开始',
+  NODE_OUTPUT: '候选内容生成',
+  NODE_COMPLETED: '节点完成',
+  NODE_SKIPPED: '节点跳过',
+  NODE_FAILED: '节点失败',
+  REVIEW_REQUIRED: '转人工复核',
+  WORKFLOW_COMPLETED: '流程完成',
+  WORKFLOW_FAILED: '流程失败',
+  RUN: '同步执行结果'
+}
+
+const retrievalStatusPresentation = {
+  NOT_RUN: { label: '未执行', color: 'default' },
+  HEALTHY: { label: '正常', color: 'default' },
+  DEGRADED: { label: '降级', color: 'warning' },
+  INSUFFICIENT: { label: '证据不足', color: 'warning' },
+  UNAVAILABLE: { label: '不可用', color: 'error' },
+  UNKNOWN: { label: '状态未知', color: 'default' }
+}
+
+function RetrievalStatusChip({ status }) {
+  const presentation = typeof status === 'string' && Object.hasOwn(retrievalStatusPresentation, status)
+    ? retrievalStatusPresentation[status]
+    : retrievalStatusPresentation.UNKNOWN
+  return <Chip size="small" variant="outlined" color={presentation.color} label={'检索：' + presentation.label}
+    title={(typeof status === 'string' ? status : 'UNKNOWN') + '：仅表示检索服务状态，不代表引用或法律结论已经核验'} />
+}
+
+function NodeStatusChip({ state, running }) {
+  const status = state === 'running' && !running
+    ? { label: '状态未确认', color: 'warning' }
+    : Object.hasOwn(nodeStatusPresentation, state)
+      ? nodeStatusPresentation[state]
+      : { label: '状态未知', color: 'default' }
+  return <Chip size="small" label={status.label} color={status.color} />
+}
+
 function MarkdownBlock({ value }) {
   return (
     <Box
       sx={{
+        minWidth: 0,
+        overflowWrap: 'anywhere',
         '& > :first-of-type': { mt: 0 },
         '& > :last-of-type': { mb: 0 },
         '& p': { m: 0, whiteSpace: 'pre-wrap', lineHeight: 1.7 },
@@ -48,6 +112,8 @@ function MarkdownBlock({ value }) {
           color: 'text.secondary'
         },
         '& pre': {
+          maxWidth: '100%',
+          boxSizing: 'border-box',
           mt: 1,
           mb: 1,
           p: 1.5,
@@ -71,10 +137,13 @@ function MarkdownBlock({ value }) {
           border: '1px solid',
           borderColor: 'divider'
         },
+        '& table': { width: '100%', minWidth: 480, borderCollapse: 'collapse' },
+        '& th, & td': { p: 1, border: '1px solid', borderColor: 'divider', textAlign: 'left', verticalAlign: 'top' },
+        '& th': { bgcolor: 'grey.50', fontWeight: 650 },
         '& hr': { border: 'none', borderTop: '1px solid', borderColor: 'divider', my: 1.25 }
       }}
     >
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={reportMarkdownComponents}>
         {String(value ?? '')}
       </ReactMarkdown>
     </Box>
@@ -170,13 +239,23 @@ export default function Workflow() {
     setNodeState(Object.fromEntries(nodes.map(n => [n.id, 'idle'])))
   }
 
+  const discardUnverifiedResult = () => {
+    setReport('')
+    setRisks([])
+    setCitations([])
+    setReviewReasons([])
+    setRetrievalStatus('NOT_RUN')
+    setLitigationAnalysis({})
+    setModelOutputQuality({})
+  }
+
   const onWorkflowEvent = (eventName, dataText) => {
     const parsed = safeJsonParse(dataText)
     const payload = parsed || { raw: dataText }
-    if (payload.runId) setWorkflowRunId(payload.runId)
+    if (typeof payload?.runId === 'string') setWorkflowRunId(payload.runId)
     setEvents(prev => [{ id: nowId(), event: eventName, payload }, ...prev].slice(0, 200))
 
-    const nodeId = payload?.nodeId
+    const nodeId = nodes.some(node => node.id === payload?.nodeId) ? payload.nodeId : null
     if (eventName === 'NODE_STARTED' && nodeId) setNodeState(prev => ({ ...prev, [nodeId]: 'running' }))
     if (eventName === 'NODE_COMPLETED' && nodeId) setNodeState(prev => ({ ...prev, [nodeId]: 'success' }))
     if (eventName === 'NODE_SKIPPED' && nodeId) setNodeState(prev => ({ ...prev, [nodeId]: 'skipped' }))
@@ -185,24 +264,26 @@ export default function Workflow() {
       setRetrievalStatus(payload.data.retrievalStatus)
     }
     if (eventName === 'REVIEW_REQUIRED') {
-      setReviewReasons(Array.isArray(payload?.data?.reasons) ? payload.data.reasons : [])
+      setReviewReasons(displayableReviewReasons(payload?.data?.reasons))
       setResultStatus('REVIEW_REQUIRED')
     }
     if (eventName === 'WORKFLOW_COMPLETED') {
       const completed = validateWorkflowResult(payload?.data)
       terminalEvent.current = true
       setReport(finalizedWorkflowReport(completed))
-      setRisks(Array.isArray(payload?.data?.riskItems) ? payload.data.riskItems : [])
-      setCitations(Array.isArray(payload?.data?.citationItems) ? payload.data.citationItems : [])
-      setReviewReasons(Array.isArray(payload?.data?.reviewReasons) ? payload.data.reviewReasons : [])
+      const publishable = isPublishableWorkflowResult(completed)
+      if (publishable) setRetrievalStatus(previous => previous === 'NOT_RUN' ? 'UNKNOWN' : previous)
+      setRisks(publishable ? displayableItems(payload?.data?.riskItems, ['title', 'level', 'description', 'suggestion']) : [])
+      setCitations(publishable ? displayableCitations(payload?.data?.citationItems) : [])
+      setReviewReasons(displayableReviewReasons(payload?.data?.reviewReasons))
       setResultStatus(payload.data.status)
-      setLitigationAnalysis(payload?.data?.litigationAnalysis || {})
+      setLitigationAnalysis(publishable ? (payload?.data?.litigationAnalysis || {}) : {})
       setModelOutputQuality(payload?.data?.modelOutputQuality || {})
     }
     if (eventName === 'WORKFLOW_FAILED') {
-      terminalEvent.current = true
-      setError(payload?.message || '工作流失败')
-      setResultStatus('FAILED')
+      throw new Error(typeof payload?.message === 'string' && payload.message.trim()
+        ? payload.message
+        : '工作流失败')
     }
   }
 
@@ -282,6 +363,7 @@ export default function Workflow() {
       await readSseEvents(res.body, onWorkflowEvent)
       if (!terminalEvent.current) throw new Error('工作流连接已结束，但未返回完成事件；当前内容可能不完整，请重新执行')
     } catch (e) {
+      discardUnverifiedResult()
       setError(String(e?.message || e))
       setResultStatus('FAILED')
     } finally {
@@ -290,7 +372,7 @@ export default function Workflow() {
   }
 
   const runSync = async () => {
-    if (running) return
+    if (running || file) return
     setRunning(true)
     reset()
     try {
@@ -305,16 +387,17 @@ export default function Workflow() {
       const json = safeJsonParse(text)
       if (res.ok && json?.success === true) {
         const result = validateWorkflowResult(json.data)
-        const reasons = Array.isArray(result?.variables?.reviewReasons) ? result.variables.reviewReasons : []
+        const reasons = displayableReviewReasons(result?.variables?.reviewReasons)
         setReport(finalizedWorkflowReport(result))
-        setWorkflowRunId(result.runId || '')
-        setRisks(Array.isArray(result.risks) ? result.risks : [])
-        setCitations(Array.isArray(result.citations) ? result.citations : [])
+        setWorkflowRunId(typeof result.runId === 'string' ? result.runId : '')
+        const publishable = isPublishableWorkflowResult(result)
+        setRisks(publishable ? displayableItems(result.risks, ['title', 'level', 'description', 'suggestion']) : [])
+        setCitations(publishable ? displayableCitations(result.citations) : [])
         setReviewReasons(reasons)
         setRetrievalStatus(result?.variables?.retrievalStatus || 'UNKNOWN')
         setResultStatus(result.status)
         setModelOutputQuality(result.modelOutputQuality || {})
-        setLitigationAnalysis({
+        setLitigationAnalysis(publishable ? {
           casePosture: result?.variables?.casePosture,
           partyRole: result?.variables?.partyRole,
           proceedingType: result?.variables?.proceedingType,
@@ -333,12 +416,13 @@ export default function Workflow() {
           opponentAnalysis: result?.variables?.opponentAnalysis,
           litigationStrategy: result?.variables?.litigationStrategy,
           lawyerReviewStatus: result?.variables?.lawyerReviewStatus
-        })
+        } : {})
         setEvents([{ id: nowId(), event: 'RUN', payload: result }])
         return
       }
       throw new Error(json?.message || text || '执行失败')
     } catch (e) {
+      discardUnverifiedResult()
       setError(String(e?.message || e))
       setResultStatus('FAILED')
     } finally {
@@ -347,23 +431,21 @@ export default function Workflow() {
   }
 
   const statusChip = useMemo(() => {
-    const values = Object.values(nodeState)
-    if (values.includes('failed')) return { label: '执行失败', color: 'error' }
-    if (values.includes('running')) return { label: '执行中', color: 'warning' }
+    if (resultStatus === 'FAILED' || error) return { label: '执行失败', color: 'error' }
     if (resultStatus === 'BLOCKED') return { label: '受理暂停', color: 'error' }
+    if (running) return { label: '执行中', color: 'warning' }
     if (resultStatus === 'REVIEW_REQUIRED') return {
       label: litigationAnalysis.casePosture === 'LITIGATION' || matter?.type === '诉讼仲裁' ? '待律师签发' : '待人工复核',
       color: 'warning'
     }
-    if (resultStatus === 'FAILED' || error) return { label: '执行失败', color: 'error' }
     if (report && resultStatus === 'SUCCESS') return { label: '分析完成，待登记', color: 'success' }
     return { label: '待执行', color: 'default' }
-  }, [error, litigationAnalysis, matter?.type, nodeState, report, resultStatus])
+  }, [error, litigationAnalysis, matter?.type, running, report, resultStatus])
 
   return (
     <PageShell
-      title="工作流编排与执行"
-      subtitle="从委托受理、事实与证据分析，到双边诉讼策略和律师签发的可追溯案件链路。"
+      title="案件分析与报告"
+      subtitle="从委托受理、事实与证据分析，到诉讼策略草案和律师签发的可追溯案件链路。"
       action={<Chip label={statusChip.label} color={statusChip.color} />}
     >
       {matter ? (
@@ -379,29 +461,34 @@ export default function Workflow() {
       <SectionCard title="执行参数" description="上传材料后会作为临时文件处理，工作流结束后自动清理。">
         <Grid container spacing={2}>
           <Grid item xs={12}>
-            <Button disabled={!uploadPermitted} variant="outlined" component="label" startIcon={<UploadFileRoundedIcon />} fullWidth sx={{ height: '100%', minHeight: 56 }}>
+            <Button disabled={!uploadPermitted || running} variant="outlined" component="label" startIcon={<UploadFileRoundedIcon />} fullWidth sx={{ minHeight: 56 }}>
               {!uploadPermitted ? '完成冲突审查与授权后可上传' : file ? `已选择：${file.name}` : '上传案件材料（可选）'}
-              <input hidden disabled={!uploadPermitted} type="file" accept={uploadAccept} onChange={(e) => {
+              <input hidden disabled={!uploadPermitted || running} type="file" accept={uploadAccept} onChange={(e) => {
                 const nextFile = e.target.files?.[0] || null
                 const fileError = validateFile(nextFile)
                 setFile(fileError ? null : nextFile)
                 setError(fileError)
+                e.target.value = ''
               }} />
             </Button>
+            {file ? <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1 }}>
+              <Typography variant="caption" color="text.secondary" sx={{ flex: 1, minWidth: 0 }}>已选材料仅随“实时执行”提交；同步执行不接收附件。</Typography>
+              <Button size="small" disabled={running} sx={{ flexShrink: 0, whiteSpace: 'nowrap' }} onClick={() => setFile(null)}>移除材料</Button>
+            </Stack> : null}
           </Grid>
           <Grid item xs={12}>
             <TextField label="用户需求" value={message} onChange={(e) => setMessage(e.target.value)} fullWidth multiline minRows={3} />
           </Grid>
           <Grid item xs={12}>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ xs: 'stretch', md: 'center' }}>
-              <Button variant="contained" startIcon={<AutoAwesomeRoundedIcon />} onClick={runStream} disabled={running}>
-                {running ? '执行中...' : '流式执行（SSE）'}
+              <Button variant="contained" startIcon={<PlayArrowRoundedIcon />} onClick={runStream} disabled={running}>
+                {running ? '执行中...' : '实时执行'}
               </Button>
-              <Button variant="outlined" onClick={runSync} disabled={running}>同步执行</Button>
+              <Button variant="outlined" onClick={runSync} disabled={running || Boolean(file)}>同步执行</Button>
               <Button variant="text" color="error" onClick={reset} disabled={running}>清空结果</Button>
               <Box sx={{ flex: 1 }} />
-              <Chip size="small" label="DAG · Multi-Agent · 可追溯" />
-              <Chip size="small" variant="outlined" label={`检索: ${retrievalStatus}`} />
+              <Chip size="small" label="流程状态 · 过程可追溯" />
+              <RetrievalStatusChip status={retrievalStatus} />
             </Stack>
           </Grid>
         </Grid>
@@ -418,67 +505,68 @@ export default function Workflow() {
 
       {resultStatus === 'BLOCKED' ? (
         <Alert severity="error" icon={<FactCheckRoundedIcon />}>
-          <AlertTitle>案件受理已暂停，后续 Agent 未执行</AlertTitle>
-          {reviewReasons.join('；')}。补正并由律师确认前不会读取材料或生成诉讼策略。
+          <AlertTitle>案件受理已暂停，后续分析节点未执行</AlertTitle>
+          {reviewReasons.length ? reviewReasons.join('；') : '未提供具体受理原因，请联系审核人员核查'}。补正并由律师确认前不会读取材料或生成诉讼策略。
         </Alert>
-      ) : reviewReasons.length ? (
+      ) : resultStatus === 'REVIEW_REQUIRED' || reviewReasons.length ? (
         <Alert severity="warning" icon={<FactCheckRoundedIcon />}>
           <AlertTitle>本次结果必须人工复核后方可对外使用</AlertTitle>
-          {reviewReasons.join('；')}。请在“法律事项 → 复核队列”登记并完成人工复核。
+          {reviewReasons.length ? reviewReasons.join('；') : '系统已将本次结果标记为待人工复核'}。请在“法律事项 → 复核队列”登记并完成人工复核。
         </Alert>
       ) : report ? (
         <Alert severity="success">工作流已完成，未触发强制人工复核规则。对外出具正式意见前仍应遵循企业内部审批制度。</Alert>
       ) : null}
 
       <Grid container spacing={2.5} alignItems="stretch">
-        <Grid item xs={12} lg={3}>
-          <SectionCard title="DAG 节点" sx={{ height: '100%' }}>
-            <Stack spacing={1}>
+        <Grid item xs={12} lg={5} sx={{ order: { xs: 0, lg: 2 } }}>
+          <SectionCard title="候选分析报告" description="仅展示完成门禁核验的结果；正式出具前仍需人工复核。" sx={{ height: '100%' }}>
+            {report ? (
+              <MarkdownBlock value={report} />
+            ) : (
+              <Alert severity="info">{resultStatus === 'BLOCKED' ? '受理已暂停，本次未形成报告。' : resultStatus === 'FAILED' ? '执行失败，本次未形成报告。' : '尚无报告，完成分析后显示。'}</Alert>
+            )}
+          </SectionCard>
+        </Grid>
+        <Grid item xs={12} lg={3} sx={{ order: { xs: 1, lg: 0 } }}>
+          <SectionCard title="流程节点" sx={{ height: '100%' }}>
+            <Stack spacing={1} role="region" aria-label="流程节点列表" tabIndex={0}
+              sx={{ maxHeight: { xs: 280, lg: 480 }, overflowY: 'auto', pr: 0.5 }}>
               {nodes.map(n => (
-                <Box key={n.id} sx={{ p: 1.25, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'grey.50' }}>
+                <Box key={n.id} sx={{ p: 1.25, flexShrink: 0, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'grey.50' }}>
                   <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
                     <Typography variant="subtitle2">{n.label}</Typography>
-                    <Chip size="small" label={nodeState[n.id] || 'idle'} color={nodeState[n.id] === 'failed' ? 'error' : nodeState[n.id] === 'running' ? 'warning' : nodeState[n.id] === 'success' ? 'success' : nodeState[n.id] === 'skipped' ? 'default' : 'default'} />
+                    <NodeStatusChip state={nodeState[n.id] || 'idle'} running={running} />
                   </Stack>
                 </Box>
               ))}
             </Stack>
           </SectionCard>
         </Grid>
-        <Grid item xs={12} lg={4}>
-          <SectionCard title="Agent Trace" description="展示每个节点的事件、输出与耗时，便于审计与复盘。" sx={{ height: '100%' }}>
+        <Grid item xs={12} lg={4} sx={{ order: { xs: 2, lg: 1 } }}>
+          <SectionCard title="执行记录" description="展示每个节点的事件、输出与耗时，便于审计与复盘。" sx={{ height: '100%' }}>
             <Stack spacing={1} sx={{ maxHeight: 560, overflow: 'auto', pr: 0.5 }}>
               {events.length === 0 ? (
-                <Alert severity="info">还没有事件。点击“流式执行（SSE）”开始。</Alert>
+                <Alert severity="info">还没有事件。点击“实时执行”开始。</Alert>
               ) : events.map(e => (
                 <Box key={e.id} sx={{ p: 1.25, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'grey.50' }}>
                   <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
-                    <Typography variant="subtitle2">{e.event}</Typography>
+                    <Typography variant="subtitle2" title={e.event}>{Object.hasOwn(eventLabels, e.event) ? eventLabels[e.event] : '流程事件'}</Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {e.payload?.nodeId || e.payload?.nodeType || 'workflow'}
-                      {e.payload?.data?.costMs !== undefined ? ` · ${e.payload.data.costMs}ms` : ''}
+                      {[e.payload?.nodeId, e.payload?.nodeType].find(value => typeof value === 'string' && value.trim()) || 'workflow'}
+                      {typeof e.payload?.data?.costMs === 'number' && Number.isFinite(e.payload.data.costMs) ? ` · ${e.payload.data.costMs}ms` : ''}
                     </Typography>
                   </Stack>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, whiteSpace: 'pre-wrap' }}>
-                    {e.payload?.message || ''}
+                    {typeof e.payload?.message === 'string' ? e.payload.message : ''}
                   </Typography>
                 </Box>
               ))}
             </Stack>
           </SectionCard>
         </Grid>
-        <Grid item xs={12} lg={5}>
-          <SectionCard title="最终报告（Markdown）" description="报告生成节点会输出可复制的结构化 Markdown，可扩展导出 PDF。" sx={{ height: '100%' }}>
-            {report ? (
-              <MarkdownBlock value={report} />
-            ) : (
-              <Alert severity="info">等待输出…</Alert>
-            )}
-          </SectionCard>
-        </Grid>
       </Grid>
 
-      {(matter?.type === '诉讼仲裁' || litigationAnalysis.casePosture === 'LITIGATION') ? (
+      {report && (matter?.type === '诉讼仲裁' || litigationAnalysis.casePosture === 'LITIGATION') ? (
         <Grid container spacing={2.5}>
           <Grid item xs={12}><Alert severity="warning">结构化内容仅供律师内部核验：来源匹配不等于语义支持或法律适用正确；核验失败时不展示自动分析。</Alert></Grid>
           <Grid item xs={12} lg={4}><SectionCard title="案件态势">
@@ -522,7 +610,7 @@ export default function Workflow() {
             </SectionCard>
           </Grid>
           <Grid item xs={12} lg={6}>
-            <SectionCard title={`来源匹配的候选引用 (${citations.length})`} description="只校验原文匹配和来源元数据；法律结论的语义支持与适用性仍需人工复核。">
+            <SectionCard title={`来源信息齐全的候选引用 (${citations.length})`} description="只校验原文匹配和来源元数据；法律结论的语义支持与适用性仍需人工复核。">
               <Stack spacing={1}>
                 {citations.length ? citations.map((citation, index) => (
                   <Box key={`${citation.title}-${citation.articleNo}-${index}`} sx={{ borderLeft: '3px solid', borderColor: 'primary.main', pl: 1.5, py: 0.5 }}>
