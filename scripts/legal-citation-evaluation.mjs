@@ -65,6 +65,7 @@ export function evaluate(records) {
         && typeof claim.displayed === 'boolean', claimAt + '缺少来源/摘录/展示状态')
       required(supportValues.includes(claim.humanSupport), claimAt + '人工支持状态无效')
       required(!claim.quoteMatched || claim.evidenceLocated, claimAt + '原文匹配但来源不存在')
+      required(claim.humanSupport !== 'SUPPORTED' || claim.evidenceLocated, claimAt + '来源未定位不能标记为人工支持')
       required(!record.refused || !claim.displayed, claimAt + '已拒答却对外展示主张')
     }
   }

@@ -78,6 +78,15 @@ test('does not treat unjudged displayed claims as supported', () => {
   assert.equal(result.unjudgedDisplayedClaims, 1)
 })
 
+test('rejects human support when the cited source is not located', () => {
+  const rows = ['direct', 'rag', 'verified'].map(group =>
+    caseRow(group, [claim(false, false, 'SUPPORTED', true)]))
+  assert.throws(() => evaluate(rows), /来源未定位不能标记为人工支持/)
+  const supportedWithoutMatchingQuote = rows.map(row =>
+    ({ ...row, claims: [claim(true, false, 'SUPPORTED', true)] }))
+  assert.equal(evaluate(supportedWithoutMatchingQuote)[0].humanSupportRate, 1)
+})
+
 
 test('rejects inconsistent question labels and refusal markers', () => {
   const rows = ['direct', 'rag', 'verified'].map(group => caseRow(group, []))

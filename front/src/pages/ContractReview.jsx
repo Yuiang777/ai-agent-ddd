@@ -5,7 +5,7 @@ import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded'
 import PageShell from '../components/PageShell'
 import { adminHeaders, fetchGovernanceReadiness, modelAvailability } from '../api/client'
 import { readSseEvents } from '../api/sse'
-import { validateWorkflowResult } from '../api/workflowResult'
+import { displayableCitations, displayableItems, isPublishableWorkflowResult, validateWorkflowResult } from '../api/workflowResult'
 import ReportRegistration from '../components/matters/ReportRegistration'
 
 function parseJson(value) {
@@ -82,11 +82,12 @@ export default function ContractReview() {
         const payload = parseJson(dataText) || {}
         if (eventName === 'WORKFLOW_COMPLETED') {
           const data = validateWorkflowResult(payload.data)
+          if (!isPublishableWorkflowResult(data)) throw new Error('本次工作流未形成可展示的合同审查报告')
           completed = true
           setResultStatus(data.status)
-          setRiskItems(Array.isArray(data.riskItems) ? data.riskItems.map(normalizeRisk) : [])
-          setCitations(Array.isArray(data.citationItems) ? data.citationItems : [])
-          setReport(typeof data.finalOutput === 'string' ? data.finalOutput : '')
+          setRiskItems(displayableItems(data.riskItems, ['title', 'level', 'article', 'articleNo', 'location', 'description', 'text', 'suggestion', 'law', 'source', 'citation']).map(normalizeRisk))
+          setCitations(displayableCitations(data.citationItems))
+          setReport(data.finalOutput)
           setAuditId(payload.runId || data.auditId || '')
         }
         if (eventName === 'WORKFLOW_FAILED') throw new Error(payload.message || '工作流执行失败')
@@ -151,7 +152,7 @@ export default function ContractReview() {
                 <Stack direction="row" justifyContent="space-between" alignItems="center"><Typography variant="h6" sx={{ fontWeight: 800 }}>风险清单</Typography><Chip label={`${riskItems.length} 项`} color={riskItems.length ? 'error' : 'default'} variant="outlined" /></Stack>
                 {!riskItems.length && <Alert severity="info" sx={{ mt: 1.5 }}>未返回结构化风险项，不能据此认定合同没有风险。</Alert>}
                 <Stack spacing={1.25} sx={{ mt: 1.5 }}>{riskItems.map(item => <Box key={`${item.title}-${item.article}`} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1.5 }}><Stack direction="row" spacing={0.75} alignItems="center"><Chip size="small" label={item.level} color={item.level === 'HIGH' ? 'error' : item.level === 'LOW' ? 'success' : 'warning'} /><Typography variant="caption" color="text.secondary">{item.article}</Typography></Stack><Typography variant="subtitle2" sx={{ mt: 0.75, fontWeight: 800 }}>{item.title}</Typography><Typography variant="body2" sx={{ mt: 0.75, lineHeight: 1.6 }}>{item.text}</Typography><Typography variant="body2" color="primary.dark" sx={{ mt: 0.75 }}>修改建议： {item.suggestion}</Typography><Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>依据： {item.law}</Typography></Box>)}</Stack>
-                {citations.length > 0 && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>引用数量： {citations.length}</Typography>}
+                {citations.length > 0 && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>来源与摘录齐全的候选引用： {citations.length} 条；法律适用仍需人工核验。</Typography>}
               </Box>
             </Stack>
           </Paper>
