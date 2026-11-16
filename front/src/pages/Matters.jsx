@@ -38,7 +38,7 @@ export default function Matters() {
       const data = await listMatters()
       if (!Array.isArray(data)) throw new Error('事项列表格式异常')
       setRows(data.map(matterData))
-    } catch (failure) { setError(errorMessage(failure)) }
+    } catch (failure) { setRows([]); setError(errorMessage(failure)) }
     finally { setLoading(false) }
   }
   useEffect(() => { reload() }, [])
@@ -67,11 +67,11 @@ export default function Matters() {
     finally { setSaving(false) }
   }
   return <PageShell title={isStaff ? "法律事项" : "我的法律服务"} subtitle={isStaff ? "管理事项进度、交付版本和团队复核流程。" : "查看服务进度、受理范围与已签署交付物。"} action={<Stack direction="row" spacing={1}><Button startIcon={<RefreshRoundedIcon />} onClick={reload} disabled={loading}>刷新</Button><Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => { setSaveError(''); setOpen(true) }}>{isStaff ? '新建事项' : '提交服务申请'}</Button></Stack>}>
-    <Grid container spacing={2}>{(isStaff ? [[rows.length, '管理中事项'], [pending, '待团队审核'], [rows.filter(row => row.status === 'MATERIAL_PENDING').length, '等待补充材料']] : [[rows.length, '我的服务事项'], [rows.filter(row => !['SIGNED_OFF', 'CLOSED', 'REJECTED'].includes(row.status)).length, '办理中'], [rows.filter(row => ['SIGNED_OFF', 'CLOSED'].includes(row.status)).length, '已完成']]).map(([value, label]) => <Grid item xs={12} sm={4} key={label}><SectionCard><Typography color="text.secondary" variant="body2">{label}</Typography><Typography variant="h4" sx={{ mt: 1, fontWeight: 800, color: 'primary.main' }}>{loading && !rows.length ? '—' : value}</Typography></SectionCard></Grid>)}</Grid>
-    {error && <Alert severity="error" action={<Button onClick={reload} disabled={loading}>重试</Button>}>加载失败：{error}。已有列表可能不是最新状态。</Alert>}
+    <Grid container spacing={2}>{(isStaff ? [[rows.length, '管理中事项'], [pending, '待团队审核'], [rows.filter(row => row.status === 'MATERIAL_PENDING').length, '等待补充材料']] : [[rows.length, '我的服务事项'], [rows.filter(row => !['SIGNED_OFF', 'CLOSED', 'REJECTED'].includes(row.status)).length, '办理中'], [rows.filter(row => ['SIGNED_OFF', 'CLOSED'].includes(row.status)).length, '已完成']]).map(([value, label]) => <Grid item xs={12} sm={4} key={label}><SectionCard><Typography color="text.secondary" variant="body2">{label}</Typography><Typography variant="h4" sx={{ mt: 1, fontWeight: 800, color: 'primary.main' }}>{error || loading && !rows.length ? '—' : value}</Typography></SectionCard></Grid>)}</Grid>
+    {error && <Alert severity="error" action={<Button onClick={reload} disabled={loading}>重试</Button>}>加载失败：{error}。事项列表已清空，请重试获取最新状态。</Alert>}
     <SectionCard title={isStaff ? "事项台账" : "服务事项"} description={isStaff ? "按业务和状态查找，查看交付物及内部复核进度。" : "按业务和状态查找，查看办理进度与已签署交付物。"}><Stack spacing={2}>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}><TextField size="small" label="搜索事项、业务编号或法域" value={query} onChange={event => setQuery(event.target.value)} sx={{ flex: 1 }} InputProps={{ startAdornment: <SearchRoundedIcon sx={{ mr: 1 }} /> }} /><TextField size="small" select label="业务类型" value={business} onChange={event => setBusiness(event.target.value)} sx={{ minWidth: 200 }}><MenuItem value="ALL">全部业务</MenuItem>{Object.entries(businessLabels).map(([key, label]) => <MenuItem key={key} value={key}>{label}</MenuItem>)}</TextField></Stack>
-      <Tabs value={tab} onChange={(_, value) => setTab(value)} variant="scrollable" allowScrollButtonsMobile><Tab label={`全部 · ${rows.length}`} /><Tab label={isStaff ? `待团队审核 · ${pending}` : `办理中 · ${rows.filter(row => !['SIGNED_OFF', 'CLOSED', 'REJECTED'].includes(row.status)).length}`} /><Tab label={isStaff ? "已签署与归档" : "已完成"} /></Tabs>
+      <Tabs value={tab} onChange={(_, value) => setTab(value)} variant="scrollable" allowScrollButtonsMobile><Tab label={`全部 · ${error ? '—' : rows.length}`} /><Tab label={isStaff ? `待团队审核 · ${error ? '—' : pending}` : `办理中 · ${error ? '—' : rows.filter(row => !['SIGNED_OFF', 'CLOSED', 'REJECTED'].includes(row.status)).length}`} /><Tab label={isStaff ? "已签署与归档" : "已完成"} /></Tabs>
       {loading && <LinearProgress aria-label="正在加载事项" />}
       {mobile && pageRows.length > 0 ? <Stack spacing={1.5}>{pageRows.map(row => <ButtonBase key={row.id} onClick={() => setSelectedId(row.id)} sx={{ display: 'block', width: '100%', p: 2, textAlign: 'left', border: '1px solid', borderColor: 'divider', borderRadius: 2, '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main' } }}>
         <Stack spacing={1}><Typography component="div" fontWeight={700} sx={{ overflowWrap: 'anywhere' }}>{row.title}</Typography><Typography component="div" variant="caption" color="text.secondary">{row.clientReference}</Typography>

@@ -282,6 +282,144 @@ try {
   assert.equal(await page.getByRole('button', { name: '运行巡检', exact: true }).count(), 0)
   assert.deepEqual(errors, [])
   console.log('PASS unavailable risk inspection has no simulated run action')
+  for (const width of [390, 1280]) {
+    await page.setViewportSize({ width, height: 900 })
+    let matterResponse = { success: true, data: [{ matter: { id: 'MOCK-MATTER', title: 'MOCK_OLD_MATTER', clientReference: 'MOCK-REF', status: 'INTAKE', version: 1 }, scope: { businessType: 'CONTRACT' } }] }
+    await page.route('**/api/legal/matters', route => route.fulfill({ json: matterResponse }))
+    await page.goto(origin + '/matters')
+    await page.getByText('MOCK_OLD_MATTER', { exact: true }).waitFor()
+    for (const invalidResponse of [{ success: false, message: '模拟读取失败' }, { success: true, data: {} }]) {
+      matterResponse = invalidResponse
+      await page.getByRole('button', { name: '刷新', exact: true }).click()
+      await page.getByText('加载失败，请重试', { exact: true }).waitFor()
+      assert.equal(await page.getByText('MOCK_OLD_MATTER', { exact: true }).count(), 0)
+      assert.equal(await page.getByText('MOCK_NEW_MATTER', { exact: true }).count(), 0)
+      assert.equal(await page.getByText('事项列表已清空，请重试获取最新状态。', { exact: false }).count(), 1)
+      assert.equal(await page.getByRole('heading', { name: '—', exact: true }).count(), 3)
+      assert.equal(await page.getByRole('tab', { name: '全部 · —', exact: true }).count(), 1)
+      assert.deepEqual(errors, [])
+      matterResponse = { success: true, data: [{ matter: { id: 'MOCK-NEW', title: 'MOCK_NEW_MATTER', clientReference: 'MOCK-NEW', status: 'INTAKE', version: 1 }, scope: { businessType: 'CONTRACT' } }] }
+      await page.getByRole('button', { name: '重试', exact: true }).click()
+      await page.getByText('MOCK_NEW_MATTER', { exact: true }).waitFor()
+    }
+    matterResponse = { success: true, data: [] }
+    await page.getByRole('button', { name: '刷新', exact: true }).click()
+    await page.getByText('暂无符合条件的事项', { exact: true }).waitFor()
+    assert.equal(await page.getByRole('heading', { name: '0', exact: true }).count(), 3)
+    assert.equal(await page.getByRole('tab', { name: '全部 · 0', exact: true }).count(), 1)
+    assert.equal(await page.getByRole('alert').count(), 0)
+    assert.deepEqual(errors, [])
+    await page.unroute('**/api/legal/matters')
+    console.log('PASS matter refresh failure, recovery and true empty state remain distinct at width ' + width)
+  }
+  for (const data of [{ unexpected: true }, [null], [['not-an-event']]]) {
+    await page.route('**/api/governance/events', route => route.fulfill({ json: { success: true, data } }))
+    await page.goto(origin + '/audit')
+    await page.getByText('诊断记录格式异常。当前没有展示示例记录。', { exact: true }).waitFor()
+    assert.equal(await page.getByText('当前服务未返回模型调用诊断记录。', { exact: true }).count(), 0)
+    assert.equal(await page.getByRole('button', { name: '打印当前诊断视图', exact: true }).isDisabled(), true)
+    assert.deepEqual(errors, [])
+    await page.unroute('**/api/governance/events')
+  }
+  await page.route('**/api/governance/events', route => route.fulfill({ json: { success: true, data: [
+    { detail: 'MOCK_UNKNOWN_EVENT', success: 'false', costMs: -1, clientId: {}, timestamp: {} },
+    { detail: 'MOCK_SUCCESS_EVENT', success: true, costMs: 0 },
+    { detail: 'MOCK_FAILURE_EVENT', success: false, costMs: 17 }
+  ] } }))
+  await page.goto(origin + '/audit')
+  await page.getByText('MOCK_UNKNOWN_EVENT', { exact: true }).waitFor()
+  const unknownEvent = page.getByRole('row').filter({ hasText: 'MOCK_UNKNOWN_EVENT' })
+  assert.match(await unknownEvent.innerText(), /结果未知/)
+  assert.equal(await unknownEvent.getByText('失败', { exact: true }).count(), 0)
+  assert.equal(await unknownEvent.getByText('0 ms', { exact: true }).count(), 0)
+  assert.equal((await unknownEvent.innerText()).includes('[object Object]'), false)
+  assert.match(await page.getByRole('row').filter({ hasText: 'MOCK_SUCCESS_EVENT' }).innerText(), /成功.*0 ms/s)
+  assert.match(await page.getByRole('row').filter({ hasText: 'MOCK_FAILURE_EVENT' }).innerText(), /失败.*17 ms/s)
+  assert.deepEqual(errors, [])
+  await page.unroute('**/api/governance/events')
+  console.log('PASS audit diagnostics reject malformed lists and keep unknown outcomes and durations distinct')
+  let uploadCapabilities = { enabled: true, reason: '模拟可用', maxFileBytes: 1048576, allowedExtensions: ['txt'] }
+  await page.route('**/api/legal/documents/upload-capabilities', route => route.fulfill({ json: { success: true, data: uploadCapabilities } }))
+  let knowledgeStats = { totalDocuments: { unexpected: true }, successDocuments: 0, failedDocuments: 0, totalChunks: 0 }
+  await page.route('**/api/legal/documents/stats', route => route.fulfill({ json: { success: true, data: knowledgeStats } }))
+  let knowledgeUploadResult = { status: 'STORED', documentId: 'MOCK-STORED', scope: { corpusType: 'FIRM_KNOWLEDGE', tenantId: 'MOCK-TENANT' } }
+  await page.route('**/api/legal/documents/upload', route => route.fulfill({ json: { success: true, data: knowledgeUploadResult } }))
+  await page.goto(origin + '/knowledge-base')
+  await page.getByText(/知识库统计结果格式异常/).waitFor()
+  assert.equal(await page.getByText('—', { exact: true }).count(), 4)
+  assert.equal(await page.getByText('0', { exact: true }).count(), 0)
+  assert.deepEqual(errors, [])
+  knowledgeStats = { totalDocuments: 0, successDocuments: 0, failedDocuments: 0, totalChunks: 0 }
+  await page.getByRole('button', { name: '刷新状态', exact: true }).click()
+  await page.getByText('0', { exact: true }).first().waitFor()
+  assert.equal(await page.getByText('0', { exact: true }).count(), 4)
+  assert.equal(await page.getByText(/知识库统计结果格式异常/).count(), 0)
+  console.log('PASS malformed knowledge statistics remain unknown and recover to genuine zero counts')
+  for (const malformed of [
+    { ...uploadCapabilities, reason: { bad: true } },
+    { ...uploadCapabilities, allowedExtensions: [{}] },
+    { ...uploadCapabilities, maxFileBytes: 0 }
+  ]) {
+    uploadCapabilities = malformed
+    await page.getByRole('button', { name: '刷新状态', exact: true }).click()
+    await page.getByText(/上传能力信息异常，请重试/).waitFor()
+    assert.equal(await page.getByRole('button', { name: '选择文档', exact: true }).isDisabled(), true)
+    assert.deepEqual(errors, [])
+  }
+  uploadCapabilities = { enabled: true, reason: '模拟可用', maxFileBytes: 1048576, allowedExtensions: ['txt'] }
+  await page.getByRole('button', { name: '刷新状态', exact: true }).click()
+  await page.getByText(/模拟可用/).waitFor()
+  assert.equal(await page.getByRole('button', { name: '选择文档', exact: true }).isEnabled(), true)
+  console.log('PASS malformed upload capabilities fail closed and valid settings restore file selection')
+  await page.locator('input[type=file]').setInputFiles({ name: 'MOCK_KNOWLEDGE.txt', mimeType: 'text/plain', buffer: Buffer.from('fixture') })
+  for (const incomplete of [
+    { ...knowledgeUploadResult },
+    { ...knowledgeUploadResult, objectUri: 'file:/mock', versionHash: 'a'.repeat(64), scope: { corpusType: 'MATTER_PRIVATE', tenantId: 'MOCK-TENANT' } }
+  ]) {
+    knowledgeUploadResult = incomplete
+    await page.getByRole('button', { name: '确认上传', exact: true }).click()
+    await page.getByText(/服务器未返回完整的律所知识存储结果/).waitFor()
+    assert.equal(await page.getByText('已存储，待入库', { exact: true }).count(), 0)
+    await page.getByText(/已选择：MOCK_KNOWLEDGE.txt/).waitFor()
+    assert.deepEqual(errors, [])
+  }
+  knowledgeUploadResult = { status: 'STORED', documentId: 'MOCK-STORED', objectUri: 'file:/mock', versionHash: 'a'.repeat(64), scope: { corpusType: 'FIRM_KNOWLEDGE', tenantId: 'MOCK-TENANT' } }
+  await page.getByRole('button', { name: '确认上传', exact: true }).click()
+  await page.getByText('已存储，待入库', { exact: true }).waitFor()
+  await page.getByRole('button', { name: '刷新状态', exact: true }).click()
+  await page.getByText('已存储，待入库', { exact: true }).waitFor()
+  assert.equal(await page.getByText('离开页面后此列表不保留；刷新状态不会清除本页记录。', { exact: false }).count(), 1)
+  assert.deepEqual(errors, [])
+  await page.unroute('**/api/legal/documents/stats')
+  await page.unroute('**/api/legal/documents/upload')
+  await page.unroute('**/api/legal/documents/upload-capabilities')
+  console.log('PASS knowledge upload rejects incomplete or mismatched receipts, retains draft and accepts complete receipt')
+  await page.goto(origin + '/law-library')
+  await page.getByText('暂不能搜索法规或判例；页面不会展示模拟法条，也不提供无法执行的搜索操作。', { exact: true }).waitFor()
+  assert.equal(await page.locator('main input').count(), 0)
+  assert.equal(await page.getByRole('button', { name: '订阅新法提醒', exact: true }).count(), 0)
+  assert.deepEqual(errors, [])
+  console.log('PASS unconnected public law library exposes no fake search or subscription actions')
+  await page.goto(origin + '/agent-studio')
+  await page.getByText('待落实的服务规则', { exact: true }).waitFor()
+  assert.equal(await page.locator('main input[type=checkbox]').count(), 0)
+  assert.equal(await page.getByRole('switch').count(), 0)
+  assert.equal(await page.getByRole('button', { name: /保存草稿/ }).count(), 0)
+  assert.equal(await page.getByRole('button', { name: '运行服务测试', exact: true }).count(), 1)
+  assert.deepEqual(errors, [])
+  console.log('PASS draft agent design has no inert policy toggles or fake save action')
+  await page.route('**/api/agent/tool-call', route => route.fulfill({ json: { success: true, data: { content: { untrusted: true } } } }))
+  await page.getByRole('button', { name: '运行服务测试', exact: true }).click()
+  await page.getByText('服务端未返回可显示文本', { exact: true }).waitFor()
+  assert.equal((await page.locator('main').innerText()).includes('[object Object]'), false)
+  await page.unroute('**/api/agent/tool-call')
+  await page.route('**/api/agent/tool-call', route => route.fulfill({ json: { success: true, data: { content: 'MOCK_AGENT_REPLY' } } }))
+  await page.getByRole('button', { name: '运行服务测试', exact: true }).click()
+  await page.getByText('MOCK_AGENT_REPLY', { exact: true }).waitFor()
+  assert.equal(await page.getByText('服务端未返回可显示文本', { exact: true }).count(), 0)
+  assert.deepEqual(errors, [])
+  await page.unroute('**/api/agent/tool-call')
+  console.log('PASS agent test rejects malformed service content and recovers on a valid reply')
   console.log('Mocked frontend regression only; not backend acceptance or legal accuracy evidence.')
 } finally {
   if (browser) await browser.close()

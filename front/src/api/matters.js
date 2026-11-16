@@ -43,7 +43,7 @@ export async function uploadMatterDocument(matterId, file, onProgress) {
 
 export async function getDocumentUploadCapabilities() {
   const data = unwrap(await api.get('/legal/documents/upload-capabilities'))
-  if (typeof data?.enabled !== 'boolean' || !Array.isArray(data.allowedExtensions) || !Number.isFinite(data.maxFileBytes)) throw new Error('上传能力信息异常，请重试')
+  if (typeof data?.enabled !== 'boolean' || typeof data.reason !== 'string' || !Number.isSafeInteger(data.maxFileBytes) || data.maxFileBytes < 0 || (data.enabled && data.maxFileBytes === 0) || !Array.isArray(data.allowedExtensions) || data.allowedExtensions.some(extension => typeof extension !== 'string' || !/^[a-z0-9]+$/i.test(extension)) || (data.enabled && !data.allowedExtensions.length)) throw new Error('上传能力信息异常，请重试')
   return data
 }
 
