@@ -10,7 +10,8 @@
     "test:acceptance": "node scripts/acceptance-smoke.mjs",
     "test": "node --test scripts/*.test.mjs",
     "test:ui-failures": "node scripts/ui-failure-smoke.mjs",
-    "test:workflow-ui": "npm run build && node scripts/workflow-ui-smoke.mjs"
+    "test:workflow-ui": "npm run build && node scripts/workflow-ui-smoke.mjs",
+    "test:chat-ui": "npm run build && node scripts/chat-ui-smoke.mjs"
   },
   "dependencies": {
     "@emotion/react": "^11.13.0",

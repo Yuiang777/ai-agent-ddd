@@ -252,7 +252,6 @@ export default function Workflow() {
   const onWorkflowEvent = (eventName, dataText) => {
     const parsed = safeJsonParse(dataText)
     const payload = parsed || { raw: dataText }
-    if (typeof payload?.runId === 'string') setWorkflowRunId(payload.runId)
     setEvents(prev => [{ id: nowId(), event: eventName, payload }, ...prev].slice(0, 200))
 
     const nodeId = nodes.some(node => node.id === payload?.nodeId) ? payload.nodeId : null
@@ -270,6 +269,7 @@ export default function Workflow() {
     if (eventName === 'WORKFLOW_COMPLETED') {
       const completed = validateWorkflowResult(payload?.data)
       terminalEvent.current = true
+      setWorkflowRunId(typeof payload?.runId === 'string' ? payload.runId.trim() : '')
       setReport(finalizedWorkflowReport(completed))
       const publishable = isPublishableWorkflowResult(completed)
       if (publishable) setRetrievalStatus(previous => previous === 'NOT_RUN' ? 'UNKNOWN' : previous)
@@ -389,7 +389,7 @@ export default function Workflow() {
         const result = validateWorkflowResult(json.data)
         const reasons = displayableReviewReasons(result?.variables?.reviewReasons)
         setReport(finalizedWorkflowReport(result))
-        setWorkflowRunId(typeof result.runId === 'string' ? result.runId : '')
+        setWorkflowRunId(typeof result.runId === 'string' ? result.runId.trim() : '')
         const publishable = isPublishableWorkflowResult(result)
         setRisks(publishable ? displayableItems(result.risks, ['title', 'level', 'description', 'suggestion']) : [])
         setCitations(publishable ? displayableCitations(result.citations) : [])
@@ -438,9 +438,11 @@ export default function Workflow() {
       label: litigationAnalysis.casePosture === 'LITIGATION' || matter?.type === '诉讼仲裁' ? '待律师签发' : '待人工复核',
       color: 'warning'
     }
-    if (report && resultStatus === 'SUCCESS') return { label: '分析完成，待登记', color: 'success' }
+    if (report && resultStatus === 'SUCCESS') return workflowRunId
+      ? { label: '分析完成，待登记', color: 'success' }
+      : { label: '分析完成，缺少运行编号', color: 'warning' }
     return { label: '待执行', color: 'default' }
-  }, [error, litigationAnalysis, matter?.type, running, report, resultStatus])
+  }, [error, litigationAnalysis, matter?.type, running, report, resultStatus, workflowRunId])
 
   return (
     <PageShell

@@ -42,7 +42,7 @@ try {
   for (const status of ['BLOCKED', 'FAILED']) {
     const publishableStatus = status === 'BLOCKED' ? 'SUCCESS' : 'REVIEW_REQUIRED'
     await page.route('**/api/workflows/run', route => route.fulfill({ json: { success: true, data: {
-      status: publishableStatus, finalOutput: 'VISIBLE_REPORT', risks: [{ title: 'VISIBLE_RISK' }],
+      runId: 'VERIFIED-SYNC', status: publishableStatus, finalOutput: 'VISIBLE_REPORT', risks: [{ title: 'VISIBLE_RISK' }],
       citations: [{ title: 'VISIBLE_CITATION', source: 'fixture-source', excerpt: 'fixture-quote' }], variables: { casePosture: 'LITIGATION', litigationStrategy: 'VISIBLE_STRATEGY' }
     } } }))
     await page.getByRole('button', { name: '同步执行', exact: true }).click()
@@ -51,6 +51,7 @@ try {
     }
     await page.getByRole('button', { name: '确认登记为报告新版本', exact: true }).waitFor()
     await page.unroute('**/api/workflows/run')
+    assert.equal(await page.getByText("\u8fd0\u884c\u7f16\u53f7\u7f3a\u5931\uff0c\u672c\u6b21\u62a5\u544a\u4e0d\u80fd\u767b\u8bb0", { exact: false }).count(), 0)
     console.log('PASS mocked ' + publishableStatus + ' result sections and registration are visible')
     await page.route('**/api/workflows/run', route => route.fulfill({ json: { success: true, data: {
       status, finalOutput: 'LEAK_REPORT', risks: [{ title: 'LEAK_RISK' }],
@@ -68,12 +69,13 @@ try {
   for (const mode of ['同步执行', '实时执行']) {
     for (const reviewReasons of [undefined, [], ['模拟复核原因'], [{ unexpected: true }], [{ unexpected: true }, '模拟复核原因']]) {
       const endpoint = mode === '同步执行' ? '**/api/workflows/run' : '**/api/workflows/run/stream'
-      const result = { status: 'REVIEW_REQUIRED', finalOutput: 'REVIEW_REPORT', reviewReasons, variables: { reviewReasons } }
+      const result = { runId: 'VERIFIED-SYNC', status: 'REVIEW_REQUIRED', finalOutput: 'REVIEW_REPORT', reviewReasons, variables: { reviewReasons } }
       await page.route(endpoint, route => route.fulfill(mode === '同步执行'
         ? { json: { success: true, data: result } }
-        : { contentType: 'text/event-stream', body: 'event: WORKFLOW_COMPLETED\ndata: ' + JSON.stringify({ data: result }) + '\n\n' }))
+        : { contentType: 'text/event-stream', body: 'event: WORKFLOW_COMPLETED\ndata: ' + JSON.stringify({ runId: 'VERIFIED-STREAM', data: result }) + '\n\n' }))
       await page.getByRole('button', { name: mode, exact: true }).click()
       await page.getByText('REVIEW_REPORT', { exact: true }).waitFor()
+      assert.equal(await page.locator('.MuiAlert-standardError').count(), 0)
       await page.getByRole('button', { name: '确认登记为报告新版本', exact: true }).waitFor()
       assert.equal(await page.getByText('本次结果必须人工复核后方可对外使用', { exact: true }).count(), 1)
       assert.equal((await page.locator('main').innerText()).includes('未触发强制人工复核规则'), false)
@@ -113,11 +115,13 @@ try {
   console.log('PASS workflow failure stops later completion events and malformed messages cannot crash the page')
   await page.unroute('**/api/workflows/run/stream')
   await page.route('**/api/workflows/run/stream', route => route.fulfill({ contentType: 'text/event-stream',
-    body: 'event: NODE_STARTED\ndata: {"nodeId":"report"}\n\n' +
+    body: 'event: NODE_STARTED\ndata: {"nodeId":"report","runId":"INTERIM-ONLY"}\n\n' +
       'event: WORKFLOW_COMPLETED\ndata: {"data":{"status":"SUCCESS","finalOutput":"STREAM_REPORT"}}\n\n' }))
   await page.getByRole('button', { name: '实时执行', exact: true }).click()
   await page.getByText('STREAM_REPORT', { exact: true }).waitFor()
-  await page.locator('.MuiChip-label').filter({ hasText: /^分析完成，待登记$/ }).waitFor()
+  await page.getByText("\u8fd0\u884c\u7f16\u53f7\u7f3a\u5931\uff0c\u672c\u6b21\u62a5\u544a\u4e0d\u80fd\u767b\u8bb0", { exact: false }).waitFor()
+  assert.equal(await page.getByRole('button', { name: "\u786e\u8ba4\u767b\u8bb0\u4e3a\u62a5\u544a\u65b0\u7248\u672c", exact: true }).isDisabled(), true)
+  await page.locator('.MuiChip-label').filter({ hasText: /^分析完成，缺少运行编号$/ }).waitFor()
   assert.equal(await page.locator('.MuiChip-label').filter({ hasText: /^状态未确认$/ }).count(), 1)
   assert.equal(await page.locator('.MuiChip-label').filter({ hasText: /^(idle|running)$/ }).count(), 0)
   assert.equal(await page.getByText('流程完成', { exact: true }).count(), 1)
