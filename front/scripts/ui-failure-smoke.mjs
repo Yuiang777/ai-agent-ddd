@@ -18,6 +18,21 @@ page.on('pageerror', error => errors.push(error.message))
 const steps = []
 const pass = name => { steps.push(name); console.log(`PASS ${name}`) }
 try {
+  await page.route('**/api/legal/matters/context', route => route.fulfill({ json: { success: true, data: { role: 'CLIENT' } } }))
+  let matterList = []
+  await page.route('**/api/legal/matters', route => route.fulfill({ json: { success: true, data: matterList } }))
+  await page.goto(`${origin}/dashboard`)
+  await page.getByText('目前没有进行中的事项。需要帮助时，可以联系您的法律服务团队。', { exact: true }).waitFor()
+  assert.equal(await page.locator('main').getByText('0', { exact: true }).count(), 3)
+  matterList = [{ matter: {} }]
+  await page.reload()
+  await page.getByText('暂时无法读取事项，请稍后重试。', { exact: true }).waitFor()
+  assert.equal(await page.locator('main').getByText('—', { exact: true }).count(), 3)
+  assert.equal(await page.getByText('目前没有进行中的事项。需要帮助时，可以联系您的法律服务团队。', { exact: true }).count(), 0)
+  await page.unroute('**/api/legal/matters')
+  await page.unroute('**/api/legal/matters/context')
+  pass('Client dashboard distinguishes an empty matter list from a malformed response')
+
   await page.route('**/api/governance/readiness', route => route.fulfill({ json: { success: true, data: { capabilities: { model_runtime: { status: 'CONFIGURED_UNVERIFIED' } } } } }))
   let chatCalls = 0
   await page.route('**/api/chat', route => {

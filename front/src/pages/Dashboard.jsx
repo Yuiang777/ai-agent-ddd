@@ -9,7 +9,7 @@ import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded'
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded'
 import { useNavigate } from 'react-router-dom'
 import { businessLabels, statusLabels } from '../api/matters'
-import { workflowRunCount } from '../api/dashboardMetrics'
+import { validatedMatterItems, workflowRunCount } from '../api/dashboardMetrics'
 import PageShell from '../components/PageShell'
 import SectionCard from '../components/SectionCard'
 import { useWorkspaceAudience } from '../components/WorkspaceAudienceContext'
@@ -57,7 +57,9 @@ function ClientDashboard() {
   useEffect(() => {
     let active = true
     fetchLegalMatters().then(result => {
-      if (active) setMatters(Array.isArray(result) ? result.map(normalizeMatter) : [])
+      const matters = validatedMatterItems(result)
+      if (!matters) throw new Error('Matter list response is invalid')
+      if (active) setMatters(matters.map(normalizeMatter))
     }).catch(() => {
       if (active) setUnavailable(true)
     }).finally(() => {
@@ -137,7 +139,11 @@ function StaffDashboard() {
       fetchBillingAccount(),
       fetchBillingUsage(),
       fetchLegalDocumentStats(),
-      fetchLegalMatters(),
+      fetchLegalMatters().then(result => {
+        const matters = validatedMatterItems(result)
+        if (!matters) throw new Error('Matter list response is invalid')
+        return matters
+      }),
       fetchGovernanceOverview()
     ]).then(results => {
       if (!active) return
@@ -146,7 +152,7 @@ function StaffDashboard() {
         account: account.status === 'fulfilled' ? account.value : null,
         usage: usage.status === 'fulfilled' ? usage.value : null,
         documents: documents.status === 'fulfilled' ? documents.value : null,
-        matters: matters.status === 'fulfilled' && Array.isArray(matters.value) ? matters.value.map(normalizeMatter) : null,
+        matters: matters.status === 'fulfilled' ? matters.value.map(normalizeMatter) : null,
         governance: governance.status === 'fulfilled' ? governance.value : null
       })
       setErrors(results.filter(result => result.status === 'rejected').map(result => result.reason?.message || '接口请求失败'))
