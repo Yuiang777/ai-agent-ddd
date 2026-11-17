@@ -1,0 +1,52 @@
+
+version: '3.8'
+services:
+  mcp-server-csdn-app:
+    image: registry.cn-hangzhou.aliyuncs.com/fuzhengwei/mcp-server-csdn-app:1.1
+    container_name: mcp-server-csdn-app
+    restart: always
+    ports:
+      - "8101:8101"
+    volumes:
+      - ./log:/data/log
+    environment:
+      - TZ=PRC
+      - SERVER_PORT=8101
+      - CSDN_API_CATEGORIES=Java场景面试宝典
+      - CSDN_API_COOKIE=uuid_tt_dd=10_20120827570-1764309334241-301948; dc_session_id=10_1764309334241.769124; fid=20_25933181211-1764309331592-773604; c_first_ref=www.google.com.hk; c_first_page=https%3A//www.csdn.net/; c_dsid=11_1764309331593.618305; c_segment=12; c-sidebar-collapse=0; hide_login=1; _ga=GA1.2.1142971907.1764309333; _gid=GA1.2.1459837795.1764309333; c_ab_test=1; dc_sid=704cac21c86465c1ce07b049e1e8f12a; creative_btn_mp=1; SESSION=0dd28228-5907-479c-bb40-10d2292a3b2c; UserName=2301_79566543; UserInfo=d62f1c36a171499ea4d69e08ad06a5b8; UserToken=d62f1c36a171499ea4d69e08ad06a5b8; UserNick=%E7%85%9Cv; AU=2B5; UN=2301_79566543; BT=1764309358437; p_uid=U010000; _ga_JJBD2VG1H7=GS2.1.s1764309332$o1$g1$t1764309356$j36$l0$h0; csdn_newcert_2301_79566543=1; vip_auto_popup=1; _clck=cv5s75%5E2%5Eg1e%5E0%5E2158; _clsk=11vzqh%5E1764309375451%5E1%5E0%5Ez.clarity.ms%2Fcollect; c_pref=https%3A//mp.csdn.net/%3Fspm%3D1001.2014.3001.5448; c_ref=https%3A//mp.csdn.net/; c_page_id=default; log_Id_pv=8; log_Id_view=220; dc_tos=t6f9y1; log_Id_click=8
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - my-network
+
+
+  mcp-server-weixin-app:
+    image: crpi-h72uuoykjtkkaagf.cn-hangzhou.personal.cr.aliyuncs.com/applesheep/mcp-server-weixin-app:1.2
+    container_name: mcp-server-weixin-app
+    restart: always
+    ports:
+      - "8102:8102"
+    volumes:
+      - ./log:/data/log
+    environment:
+      - TZ=PRC
+      - SERVER_PORT=8102
+      - WEIXIN_API_ORIGINAL_ID=gh_841078ae3a4b
+      - WEIXIN_API_APP_ID=wx6a12e4a4cda1402f
+      - WEIXIN_API_APP_SECRET=6cc060918b8f30f2b7749fab2a85bd34
+      - WEIXIN_API_TEMPLATE_ID=v58qJDaWNkBTrzDGYN2CQ_jtLmN3YAE5AO5ZJvaMAZc
+      - WEIXIN_API_TOUSER=oyrGvvulxkD5jdXTxe6EYhx2q4IU
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - my-network
+
+networks:
+  my-network:
+    driver: bridge

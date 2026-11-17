@@ -1,0 +1,42 @@
+server:
+  port: ${SERVER_PORT:8091}
+
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.mybatis.spring.boot.autoconfigure.MybatisAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiImageAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiChatAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioTranscriptionAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiModerationAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioSpeechAutoConfiguration
+      - org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration
+  ai:
+    openai:
+      chat:
+        enabled: false
+      embedding:
+        enabled: false
+    vectorstore:
+      pgvector:
+        initialize-schema: false
+  datasource:
+    initialization-mode: never
+
+app:
+  infrastructure:
+    enabled: false
+  enterprise:
+    security-context-enabled: false
+    trusted-context-header-enabled: false
+  model-runtime:
+    enabled: false
+  billing:
+    enabled: false
+    provider: mock
+
+logging:
+  level:
+    root: info

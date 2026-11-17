@@ -15,21 +15,52 @@ thread:
 # 数据库配置；启动时配置数据库资源信息
 spring:
   datasource:
-    username: root
-    password: 123456
-    url: jdbc:mysql://127.0.0.1:3306/xfg_frame_archetype?useUnicode=true&characterEncoding=utf8&autoReconnect=true&zeroDateTimeBehavior=convertToNull&serverTimezone=UTC&useSSL=true
-    driver-class-name: com.mysql.cj.jdbc.Driver
-  hikari:
-    pool-name: Retail_HikariCP
-    minimum-idle: 15 #最小空闲连接数量
-    idle-timeout: 180000 #空闲连接存活最大时间，默认600000（10分钟）
-    maximum-pool-size: 25 #连接池最大连接数，默认是10
-    auto-commit: true  #此属性控制从池返回的连接的默认自动提交行为,默认值：true
-    max-lifetime: 1800000 #此属性控制池中连接的最长生命周期，值0表示无限生命周期，默认1800000即30分钟
-    connection-timeout: 30000 #数据库连接超时时间,默认30秒，即30000
-    connection-test-query: SELECT 1
-  type: com.zaxxer.hikari.HikariDataSource
+    mysql:
+      username: ${MYSQL_USERNAME:root}
+      password: ${MYSQL_PASSWORD:}
+      url: ${MYSQL_URL:jdbc:mysql://127.0.0.1:13306/ai-agent-station?useUnicode=true&characterEncoding=utf8&autoReconnect=true&zeroDateTimeBehavior=convertToNull&serverTimezone=Asia/Shanghai&useSSL=true}
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      type: com.zaxxer.hikari.HikariDataSource
+      hikari:
+        pool-name: Retail_HikariCP
+        minimum-idle: 15 #最小空闲连接数量
+        idle-timeout: 180000 #空闲连接存活最大时间，默认600000（10分钟）
+        maximum-pool-size: 25 #连接池最大连接数，默认是10
+        auto-commit: true  #此属性控制从池返回的连接的默认自动提交行为,默认值：true
+        max-lifetime: 1800000 #此属性控制池中连接的最长生命周期，值0表示无限生命周期，默认1800000即30分钟
+        connection-timeout: 30000 #数据库连接超时时间,默认30秒，即30000
+        connection-test-query: SELECT 1
+    pgvector:
+      username: ${PGVECTOR_USERNAME:postgres}
+      password: ${PGVECTOR_PASSWORD:}
+      url: ${PGVECTOR_URL:jdbc:postgresql://127.0.0.1:15432/springai}
+      driver-class-name: org.postgresql.Driver
+      type: com.zaxxer.hikari.HikariDataSource
+      hikari:
+        pool-name: Retail_HikariCP
+        minimum-idle: 15 #最小空闲连接数量
+        idle-timeout: 180000 #空闲连接存活最大时间，默认600000（10分钟）
+        maximum-pool-size: 25 #连接池最大连接数，默认是10
+        auto-commit: true  #此属性控制从池返回的连接的默认自动提交行为,默认值：true
+        max-lifetime: 1800000 #此属性控制池中连接的最长生命周期，值0表示无限生命周期，默认1800000即30分钟
+        connection-timeout: 30000 #数据库连接超时时间,默认30秒，即30000
+        connection-test-query: SELECT 1
+  servlet:
+    multipart:
+      max-file-size: ${APP_UPLOAD_MAX_FILE_SIZE:200MB}
+      max-request-size: ${APP_UPLOAD_MAX_REQUEST_SIZE:210MB}
+  ai:
+    openai:
+      base-url: ${AI_OPENAI_BASE_URL:https://api.openai.com/v1}
+      api-key: ${AI_OPENAI_API_KEY:}
+      chat:
+        options:
+          model: ${AI_CHAT_MODEL:}
+      embedding:
+        options:
+          model: ${AI_EMBEDDING_MODEL:}
 
+# MyBatis 配置【如需使用记得打开】
 #mybatis:
 #  mapper-locations: classpath:/mybatis/mapper/*.xml
 #  config-location:  classpath:/mybatis/config/mybatis-config.xml
@@ -38,4 +69,11 @@ spring:
 logging:
   level:
     root: info
+    org:
+      mybatis: DEBUG
   config: classpath:logback-spring.xml
+
+app:
+  admin-api:
+    enabled: ${APP_ADMIN_API_ENABLED:false}
+    token: ${APP_ADMIN_API_TOKEN:}

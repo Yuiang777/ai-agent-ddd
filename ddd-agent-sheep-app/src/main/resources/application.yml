@@ -2,4 +2,49 @@ spring:
   config:
     name: ddd-agent-sheep-app
   profiles:
-    active: dev
+    active: ${SPRING_PROFILES_ACTIVE:offline}
+
+app:
+  infrastructure:
+    enabled: ${APP_INFRASTRUCTURE_ENABLED:false}
+  enterprise:
+    security-context-enabled: ${APP_ENTERPRISE_SECURITY_CONTEXT_ENABLED:false}
+    trusted-context-header-enabled: ${APP_ENTERPRISE_TRUSTED_CONTEXT_HEADER_ENABLED:false}
+  legal:
+    automation-release-enabled: ${APP_LEGAL_AUTOMATION_RELEASE_ENABLED:false}
+    matter-store: ${APP_LEGAL_MATTER_STORE:memory}
+    matter-schema-initialize: ${APP_LEGAL_MATTER_SCHEMA_INITIALIZE:false}
+    knowledge:
+      vector-table: ${APP_LEGAL_VECTOR_TABLE:vector_store_openai}
+      storage-root: ${APP_LEGAL_STORAGE_ROOT:data/legal}
+      max-source-bytes: ${APP_LEGAL_MAX_SOURCE_BYTES:209715200}
+      ingestion-batch-size: ${APP_LEGAL_INGESTION_BATCH_SIZE:64}
+      chunking:
+        max-chars: ${APP_LEGAL_CHUNK_MAX_CHARS:1200}
+        overlap-chars: ${APP_LEGAL_CHUNK_OVERLAP_CHARS:120}
+    retrieval:
+      context-budget-chars: ${APP_LEGAL_CONTEXT_BUDGET_CHARS:6000}
+      max-chars-per-evidence: ${APP_LEGAL_MAX_CHARS_PER_EVIDENCE:1400}
+      max-evidence-per-document: ${APP_LEGAL_MAX_EVIDENCE_PER_DOCUMENT:4}
+    object-storage:
+      provider: ${APP_LEGAL_OBJECT_STORAGE_PROVIDER:filesystem}
+      filesystem-root: ${APP_LEGAL_OBJECT_STORAGE_ROOT:data/legal/objects}
+      minio:
+        endpoint: ${APP_LEGAL_MINIO_ENDPOINT:http://127.0.0.1:19000}
+        access-key: ${APP_LEGAL_MINIO_ACCESS_KEY:}
+        secret-key: ${APP_LEGAL_MINIO_SECRET_KEY:}
+        bucket: ${APP_LEGAL_MINIO_BUCKET:legal-originals}
+  upload:
+    max-file-size: ${APP_UPLOAD_MAX_FILE_SIZE:200MB}
+  model-runtime:
+    enabled: ${APP_MODEL_RUNTIME_ENABLED:false}
+    max-concurrent-per-client: ${APP_MODEL_MAX_CONCURRENT_PER_CLIENT:3}
+    circuit-failure-threshold: ${APP_MODEL_CIRCUIT_FAILURE_THRESHOLD:3}
+    circuit-open-ms: ${APP_MODEL_CIRCUIT_OPEN_MS:30000}
+  billing:
+    enabled: ${APP_BILLING_ENABLED:false}
+    provider: ${APP_BILLING_PROVIDER:mock}
+
+workflow:
+  model-client-id: ${WORKFLOW_MODEL_CLIENT_ID:law-consultant}
+  storage-root: ${WORKFLOW_STORAGE_ROOT:./data/workflows}

@@ -1,13 +1,40 @@
 target/
+**/target/
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+### Runtime data and logs ###
+data/
+!data/.gitkeep
+**/data/log/
+**/data/multimodal/
+**/data/workflows/
+docs/dev-ops/agent-environment/data/
+docs/dev-ops/agent-environment/log/
+*.log
+*.log.*
+*.gz
+
+### Local configuration ###
+.env
+.env.*
+!.env.example
+.claude/
+
+### Frontend ###
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+build/
+**/build/
+.vite/
+**/.vite/
+
 ### IntelliJ IDEA ###
-.idea/modules.xml
-.idea/jarRepositories.xml
-.idea/compiler.xml
-.idea/libraries/
+.idea/
+**/.idea/
 *.iws
 *.iml
 *.ipr
@@ -24,7 +51,6 @@ target/
 ### NetBeans ###
 /nbproject/private/
 /nbbuild/
-/dist/
 /nbdist/
 /.nb-gradle/
 build/
@@ -33,7 +59,7 @@ build/
 
 ### VS Code ###
 .vscode/
+**/.vscode/
 
 ### Mac OS ###
 .DS_Store
-/.idea/

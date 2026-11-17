@@ -1,6 +1,11 @@
 server:
   port: 8091
 
+app:
+  enterprise:
+    security-context-enabled: ${APP_ENTERPRISE_SECURITY_CONTEXT_ENABLED:true}
+    trusted-context-header-enabled: ${APP_ENTERPRISE_TRUSTED_CONTEXT_HEADER_ENABLED:false}
+
 # 线程池配置
 thread:
   pool:
