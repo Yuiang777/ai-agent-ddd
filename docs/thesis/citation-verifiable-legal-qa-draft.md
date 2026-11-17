@@ -8,13 +8,38 @@
 
 **关键词：**法律问答；检索增强生成；引用可追溯；大语言模型；人工复核
 
+## Abstract
+
+Large language models can produce plausible legal answers with fabricated provisions, inaccurate quotations, or quotations that do not support the stated conclusion. This thesis describes a prototype legal question-answering system that adds claim-level citation checks to an existing retrieval and workflow pipeline. For each retrieved passage, the system assigns an identifier scoped to the current run. The model is asked to return a claim, its evidence identifier, and a quoted excerpt. A deterministic verifier checks identifier membership, source location, available version metadata, and whether the excerpt occurs in the retrieved text after a limited whitespace normalization. If any claim fails these checks, the prototype withholds the candidate claims; a successful source match still requires legal review before use. The check does not establish that a legal inference is sound, that a source is authoritative, or that the cited law applies at the relevant time. Program tests cover malformed citations and failure paths, while a separate protocol specifies how a future evaluation should compare direct generation, conventional retrieval-augmented generation, and the prototype using the same questions and human annotations. That real-world comparative evaluation has not yet been conducted.
+
+**Keywords:** legal question answering; retrieval-augmented generation; citation traceability; large language models; human review
+
 ## 第一章 绪论
 
 法律问答需要回答与所引材料建立可审计关系。“引用可验证”至少包括来源存在、摘录准确、语义支持与适用时点正确四层。本次实现自动检查前两层的相关元数据和原文匹配；第三、四层需由法律专业人员核查。研究目标是降低错引被展示为已核验结论的风险，不承诺所有法域和案件类型的自动法律判断。
 
+### 1.1 研究问题与范围
+
+本文针对两类可以分开检验的问题开展设计。其一，在模型给出多条法律主张时，系统能否逐条定位到**本轮检索**的材料，并阻止不存在的证据编号、篡改的摘录和缺失的来源信息进入最终报告？其二，来源和原文均匹配时，界面及工作流能否仍将结论保留在人工复核环节，而不是把程序检查写成法律判断？前一问题可以通过构造缺失、错引与混合主张的程序测试检查门禁行为；后一问题需要检查报告状态和实际展示内容。要评价这些门禁是否改善真实问答质量，仍须按第五章方案对同一批问题开展人工标注的三组对照实验，本文目前不据程序测试推断改善幅度。
+
+本文交付的是一种“先核对引用再形成候选结论”的可运行原型，而非法律意见自动签发工具。材料的权威性、修订前后适用关系、事实是否完整以及引文是否真正支持推论，都不能由字符串包含关系确认。论文将机器可检查的来源条件与必须由专业人员判断的法律条件分别叙述，并以实际可重放的测试记录对应实现，不用未接入的公共检索或持久化审计功能充当成果。
+
 ## 第二章 需求分析
 
 功能需求：来源检索、主张结构化、逐条来源绑定、错误原因输出、证据不足时拒绝自动签发、人工复核。非功能需求：可追溯版本与来源、有限输入长度、来源隔离、可复现的测试和透明的能力边界。系统中的模型路由标识不等于用户身份，正式环境还须验证多租户权限与隐私保护。
+
+### 2.1 需求与验证路径
+
+需求是否实现，不能只凭界面截图判断。下表把可检查的行为、当前落点和验证方式列在一起；其中“测试覆盖”指程序行为回归，不代表真实法源的外部评测已经完成。
+
+| 需求 | 可观察行为 | 当前实现与程序测试 |
+| --- | --- | --- |
+| 本轮证据绑定 | 主张引用未知编号时返回失败，而非从历史运行补取材料 | `LegalClaimCitationVerifier`；`LegalClaimCitationVerifierTest` |
+| 错引整体阻断 | 混合多条主张时，只要一条摘录不符就不向报告附带部分候选引用 | `LegalOrchestratorService.CitationAgent`；`LegalCitationWorkflowTest` |
+| 对外状态门禁 | 受阻、失败、缺少有效终态的工作流不显示可登记的报告 | 前端 `workflow-result.test.mjs` 与 `workflow-ui-smoke.mjs` |
+| 结果可复核 | 相同题目、轮次、模型和语料快照的标注记录才允许汇总 | `legal-citation-evaluation.mjs` 与同名测试；真实题库与仲裁记录待采集 |
+
+此外，公共法规与判例搜索、法源全文历史版本核验、持久化正式审计档案均不能从本表推断为已实现；正式演示时应单独标明这些缺口。
 
 ## 第三章 系统设计
 
@@ -40,6 +65,12 @@
 前端仅在工作流完成事件提供有效终态及非空最终正文后展示报告；节点级流式输出不直接作为报告展示。受理暂停或执行失败时不展示候选风险、引用和诉讼分析；即使先收到完成事件，只要后续流式解析失败，也撤回本次候选结果。失败事件中断流式读取，避免其后的完成事件重新恢复候选结果；错误消息按字符串类型检查后展示，避免异常对象引起页面渲染失败。连接中断、结束事件缺失或执行失败时不允许登记报告。
 
 这里的质量门禁只阻断已识别的风险，不构成对法律结论正确性的数学证明；特别是来源路径与校验和仅检查元数据存在，没有在每次问答中重新拉取原件校验真实性。
+
+### 3.4 逐条检查与整体阻断
+
+核验输入是主张序列与**该次运行**得到的证据序列；编号 E1、E2 等仅按这份序列的位置解释，不跨轮次复用。程序拒绝空列表和超过 20 条的列表；单条主张正文最长 1200 个字符、摘录最长 360 个字符，去除 Unicode 空白后的摘录至少 8 个字符。每条主张依次检查字段非空、编号能否命中、本轮材料是否带有文档及来源路径、版本与已有校验和元数据是否存在、可解析的生效日期是否晚于运行时钟，最后检查规范化摘录是否为证据片段的连续子串。字段不合格或任一检查失败都会得到具体状态，而不是默认为“来源匹配”。
+
+令 `s_i` 表示第 `i` 条主张的核验状态。只有主张数在允许范围内且**所有**状态均为 `SOURCE_MATCHED`，整体来源检查才为真；任一失败都不拼接部分成功主张，也不把部分引用加入候选列表。来源定位检查依据的是本轮检索对象携带的字段，校验和仅检查元数据是否存在，未重新读取对象或计算文件摘要；未记录生效日期的资料不会因这一字段自动失败，已废止或需历史时点判断的资料也不能由该规则充分识别。上述逻辑对应 `LegalClaimCitationVerifier` 与工作流的 `CitationAgent`；它们输出“来源匹配”或具体错误原因，不输出“法律论证成立”。
 
 ## 第四章 实现说明
 
@@ -117,6 +148,8 @@ LegalOrchestratorService 在检索节点保存本轮候选证据，推理节点�
 ### 5.3 效度威胁与审计条件
 
 内部单元测试使用虚构材料，只验证确定性门禁与接口行为，不能推断真实法律问题准确率。真实对照实验还可能受到题型分布、模型随机性、检索语料覆盖、旧法版本混用和标注者分歧的影响。实验前冻结题库、模型与提示词版本、语料快照和问题适用时点；实验后保留逐轮原始输出、双人独立标注与仲裁记录，报告各组相同题目和轮次下的分子、分母、未裁决条数及拒答情况。不能用已展示但未仲裁的主张计算无依据结论率，也不能把程序测试通过率替代法律效果指标。
+
+为防止汇总表与实际展示脱节，每条实验记录应通过 `(questionId, run, group)` 回溯到题库、原始输出及页面或报告，再按主张顺序对照独立标注与仲裁记录；保存证据版本、文件散列和代码提交号。现有统计脚本仅校验输入结构、组间配对和指标计算，不会自动验证截图、原始法源或标注者是否独立。来源版本或输出遗失的轮次不得臆测补齐；记录缺失原因，完成授权与脱敏后才归档可公开材料。具体检查步骤见 `docs/thesis/evaluation-protocol.md`，尚未执行真实样本标注。
 ## 第六章 局限与后续工作
 
 字符串匹配无法识别断章取义、错误推论、规范冲突、废止或历史时间点适用；没有逐次从存储中重新核验原始文件散列；生效日期规则仅排除明确的未来日期。后续需建立法条版本时间线、人工标注的语义支持数据集和实测对照实验。系统不能替代执业律师判断。
