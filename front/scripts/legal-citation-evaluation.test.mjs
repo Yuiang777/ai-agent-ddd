@@ -3,6 +3,8 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { spawnSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import { evaluate, readJsonl } from '../../scripts/legal-citation-evaluation.mjs'
 
 const claim = (located, quote, support, displayed) => ({
@@ -132,6 +134,33 @@ test('rejects inconsistent question labels and refusal markers', () => {
 test('rejects empty question IDs before computing metrics', () => {
   const rows = ['direct', 'rag', 'verified'].map(group => caseRow(group, [], { questionId: '' }))
   assert.throws(() => evaluate(rows), /ID/)
+})
+
+test('CLI evaluates UTF-8 files outside the project and emits no scores on invalid input', async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'legal-evaluation-cli-'))
+  const file = path.join(directory, '人工标注.jsonl')
+  const script = fileURLToPath(new URL('../../scripts/legal-citation-evaluation.mjs', import.meta.url))
+  const rows = ['direct', 'rag', 'verified'].map(group => caseRow(group, []))
+  try {
+    await fs.writeFile(file, rows.map(JSON.stringify).join('\n'))
+    const success = spawnSync(process.execPath, [script, file], {
+      cwd: directory, encoding: 'utf8', timeout: 10000,
+    })
+    assert.ifError(success.error)
+    assert.equal(success.status, 0, success.stderr)
+    assert.equal(success.stderr, '')
+    assert.deepEqual(JSON.parse(success.stdout), evaluate(rows))
+    await fs.writeFile(file, rows.slice(1).map(JSON.stringify).join('\n'))
+    const failure = spawnSync(process.execPath, [script, file], {
+      cwd: directory, encoding: 'utf8', timeout: 10000,
+    })
+    assert.ifError(failure.error)
+    assert.equal(failure.status, 1)
+    assert.equal(failure.stdout, '')
+    assert.match(failure.stderr, /三个实验组/)
+  } finally {
+    await fs.rm(directory, { recursive: true, force: true })
+  }
 })
 
 test('reports original source line numbers after empty lines', async () => {
