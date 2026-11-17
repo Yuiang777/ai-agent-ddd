@@ -123,7 +123,14 @@ export function evaluate(records) {
 }
 
 export async function readJsonl(file) {
-  const lines = (await fs.readFile(file, 'utf8')).replace(/^\uFEFF/, '').split(/\r?\n/)
+  const bytes = await fs.readFile(file)
+  let text
+  try {
+    text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes)
+  } catch {
+    throw new Error('标注文件不是有效的 UTF-8 编码')
+  }
+  const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/)
   return lines.flatMap((line, index) => {
     if (!line.trim()) return []
     try { return [JSON.parse(line)] } catch { throw new Error('第 ' + (index + 1) + ' 行不是合法 JSON') }

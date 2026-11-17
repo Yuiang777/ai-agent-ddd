@@ -182,11 +182,47 @@ test('accepts UTF-8 BOM only at the start of a JSONL file', async () => {
   try {
     await fs.writeFile(file, String.fromCharCode(0xFEFF) + rows.map(JSON.stringify).join(String.fromCharCode(10)))
     assert.deepEqual(await readJsonl(file), rows)
+    await fs.writeFile(file, JSON.stringify(rows[0]) + '\n' + '\uFEFF' + JSON.stringify(rows[1]))
+    await assert.rejects(readJsonl(file), /第 2 行/)
+    await fs.writeFile(file, '\uFEFF\uFEFF' + JSON.stringify(rows[0]))
+    await assert.rejects(readJsonl(file), /第 1 行/)
   } finally {
     await fs.rm(directory, { recursive: true, force: true })
   }
 })
 
+
+test('rejects invalid UTF-8 rather than silently changing question IDs', async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'legal-evaluation-encoding-'))
+  const file = path.join(directory, 'labels.jsonl')
+  const script = fileURLToPath(new URL('../../scripts/legal-citation-evaluation.mjs', import.meta.url))
+  const rows = ['direct', 'rag', 'verified'].map(group => caseRow(group, []))
+  try {
+    const text = rows.map(JSON.stringify).join('\n')
+    for (const invalidBytes of [Buffer.from([0x80]), Buffer.from([0xe4, 0xb8])]) {
+      await fs.writeFile(file, Buffer.concat([
+        Buffer.from(text.replaceAll('q1', '')),
+        invalidBytes,
+      ]))
+      await assert.rejects(readJsonl(file), /UTF-8/)
+    }
+    const questionOffset = text.indexOf('q1')
+    await fs.writeFile(file, Buffer.concat([
+      Buffer.from(text.slice(0, questionOffset)), Buffer.from([0x80]),
+      Buffer.from(text.slice(questionOffset + 2)),
+    ]))
+    await assert.rejects(readJsonl(file), /UTF-8/)
+    const failure = spawnSync(process.execPath, [script, file], {
+      cwd: directory, encoding: 'utf8', timeout: 10000,
+    })
+    assert.ifError(failure.error)
+    assert.equal(failure.status, 1)
+    assert.equal(failure.stdout, '')
+    assert.match(failure.stderr, /UTF-8/)
+  } finally {
+    await fs.rm(directory, { recursive: true, force: true })
+  }
+})
 
 test('requires the same contiguous number of rounds for every question', () => {
   const rows = ['direct', 'rag', 'verified'].flatMap(group => [
