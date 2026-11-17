@@ -32,6 +32,38 @@ test('uses the same denominators for all groups and keeps zero denominators N/A'
   assert.equal(verified.unsupportedDisplayedRate, null)
 })
 
+test('counts displayed conclusions without located citations as answers rather than refusals', () => {
+  const rows = ['direct', 'rag', 'verified'].map(group =>
+    caseRow(group, [claim(false, false, 'UNSUPPORTED', true)]))
+  for (const result of evaluate(rows)) {
+    assert.equal(result.metricCounts.generatedClaims, 1)
+    assert.equal(result.metricCounts.displayedClaims, 1)
+    assert.equal(result.locatedRate, 0)
+    assert.equal(result.quoteAccuracy, 0)
+    assert.equal(result.humanSupportRate, 0)
+    assert.equal(result.unsupportedDisplayedRate, 1)
+    assert.equal(result.refusalRate, 0)
+    assert.equal(result.falseRefusalRate, 0)
+  }
+})
+
+test('keeps hidden unsupported claims in generation metrics but outside displayed risk', () => {
+  const rows = ['direct', 'rag', 'verified'].map(group =>
+    caseRow(group, [
+      claim(true, true, 'SUPPORTED', true),
+      claim(false, false, 'UNSUPPORTED', false),
+    ]))
+  for (const result of evaluate(rows)) {
+    assert.equal(result.metricCounts.generatedClaims, 2)
+    assert.equal(result.metricCounts.displayedClaims, 1)
+    assert.equal(result.metricCounts.unsupportedDisplayedClaims, 0)
+    assert.equal(result.locatedRate, 0.5)
+    assert.equal(result.humanSupportRate, 0.5)
+    assert.equal(result.unsupportedDisplayedRate, 0)
+    assert.equal(result.refusalRate, 0)
+  }
+})
+
 test('includes frozen provenance and paired sample sizes in each group result', () => {
   const rows = ['direct', 'rag', 'verified'].map(group =>
     caseRow(group, [], { promptVersion: 'prompt-' + group }))
