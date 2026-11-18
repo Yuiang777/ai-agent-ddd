@@ -20,18 +20,20 @@ test('missing terminal status or report body fails closed', () => {
 
 test('only terminal publishable statuses expose derived result sections', () => {
   for (const status of ['SUCCESS', 'REVIEW_REQUIRED']) {
-    assert.equal(isPublishableWorkflowResult({ status }), true)
+    assert.equal(isPublishableWorkflowResult({ status, finalOutput: '候选报告' }), true)
   }
   for (const status of ['BLOCKED', 'FAILED', 'RUNNING', undefined]) {
-    assert.equal(isPublishableWorkflowResult({ status }), false)
+    assert.equal(isPublishableWorkflowResult({ status, finalOutput: '候选报告' }), false)
   }
   assert.equal(isPublishableWorkflowResult(null), false)
 })
 
 test('publishable results reject whitespace and non-string report bodies', () => {
   for (const status of ['SUCCESS', 'REVIEW_REQUIRED']) {
-    for (const finalOutput of ['  \n\t', null, undefined, {}, []]) {
+    for (const finalOutput of ['', '  \n\t', null, undefined, {}, [], 0, true]) {
       assert.throws(() => validateWorkflowResult({ status, finalOutput }))
+      assert.equal(isPublishableWorkflowResult({ status, finalOutput }), false)
+      assert.equal(finalizedWorkflowReport({ status, finalOutput }), '')
     }
   }
 })
