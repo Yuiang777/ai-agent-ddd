@@ -12,6 +12,8 @@ import org.springframework.stereotype.Repository;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.time.Instant;
 
 @Repository
 @ConditionalOnProperty(name = "app.infrastructure.enabled", havingValue = "true")
@@ -105,7 +107,11 @@ public class PostgresLegalDocumentCatalogRepository implements ILegalDocumentCat
 
     private int update(Connection connection, String sql, Object... parameters) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
-            for (int i = 0; i < parameters.length; i++) statement.setObject(i + 1, parameters[i]);
+            for (int index = 0; index < parameters.length; index++) {
+                Object value = parameters[index];
+                if (value instanceof Instant instant) statement.setTimestamp(index + 1, Timestamp.from(instant));
+                else statement.setObject(index + 1, value);
+            }
             return statement.executeUpdate();
         }
     }
