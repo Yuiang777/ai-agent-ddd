@@ -39,6 +39,34 @@ public class LegalDocumentRepositoryScopeTest {
         assertEquals("证据.txt", sources.get(0).docName());
         assertEquals(scope, sources.get(0).scope());
         assertEquals("s3://legal/document-1", sources.get(0).objectUri());
+        assertEquals("", repository.read(sources.get(0)).lawName());
+    }
+
+    @Test
+    public void shouldUseOriginalNameInsteadOfStagingIdForPublicLaw() throws Exception {
+        String root = temporaryFolder.newFolder("public-law").getAbsolutePath();
+        LegalDocumentRepository repository = new LegalDocumentRepository(
+                null, new JdbcTemplate(), 64, "vector_store_openai", root);
+
+        repository.stageSource("document-2", "中华人民共和国个人信息保护法.md",
+                LegalDocumentScope.publicLaw(), null,
+                new ByteArrayInputStream("中华人民共和国个人信息保护法\n第一条 正文".getBytes(StandardCharsets.UTF_8)));
+        LegalDocumentSource source = repository.listSources().get(0);
+
+        assertEquals("document-2.md", source.sourcePath().getFileName().toString());
+        assertEquals("中华人民共和国个人信息保护法", repository.read(source).lawName());
+    }
+
+    @Test
+    public void shouldPreferBookTitleOverOriginalName() throws Exception {
+        String root = temporaryFolder.newFolder("titled-law").getAbsolutePath();
+        LegalDocumentRepository repository = new LegalDocumentRepository(
+                null, new JdbcTemplate(), 64, "vector_store_openai", root);
+
+        repository.stageSource("document-3", "法律原文.txt", LegalDocumentScope.publicLaw(), null,
+                new ByteArrayInputStream("\n《中华人民共和国法律援助法》\n第一条 正文".getBytes(StandardCharsets.UTF_8)));
+
+        assertEquals("中华人民共和国法律援助法", repository.read(repository.listSources().get(0)).lawName());
     }
 
     @Test
