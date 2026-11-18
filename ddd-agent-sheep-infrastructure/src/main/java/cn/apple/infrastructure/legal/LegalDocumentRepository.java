@@ -124,7 +124,7 @@ public class LegalDocumentRepository implements ILegalDocumentRepository {
         }
         String text = readText(source.sourcePath());
         String lawName = source.scope().corpusType() == LegalCorpusType.PUBLIC_LAW
-                ? resolveLawName(source.sourcePath(), text)
+                ? resolveLawName(source.docName(), text)
                 : "";
         return new LegalDocument(source, lawName, text);
     }
@@ -776,13 +776,13 @@ public class LegalDocumentRepository implements ILegalDocumentRepository {
         return reader.get().stream().map(Document::getText).reduce("", (left, right) -> left + System.lineSeparator() + right);
     }
 
-    private String resolveLawName(Path file, String text) {
+    private String resolveLawName(String originalName, String text) {
         String firstLine = text.lines().map(String::trim).filter(line -> !line.isBlank()).findFirst().orElse("");
         Matcher bookTitle = Pattern.compile("《([^》]+)》").matcher(firstLine);
         if (bookTitle.find()) {
             return bookTitle.group(1);
         }
-        return file.getFileName().toString().replaceFirst("\\.[^.]+$", "");
+        return originalName.replaceFirst("\\.[^.]+$", "");
     }
 
     private boolean isSupportedFile(Path file) {
