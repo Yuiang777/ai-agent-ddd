@@ -687,14 +687,7 @@ public class LegalOrchestratorService {
             StructuredModelOutputNormalizer.NormalizedOutput normalized = structuredOutputNormalizer.normalizeArray(clientId, raw, """
                     你需要把下面内容修正为 JSON 数组（不能是 Markdown，不能有代码块标记）。
                     每项字段：title, level(HIGH/MEDIUM/LOW), description, suggestion。
-                    """, List.of(
-                    Map.of(
-                            "title", "风险清单",
-                            "level", "MEDIUM",
-                            "description", safeSlice(variableText(context, "citationsMd", "已匹配来源，但风险内容需人工核实"), 360),
-                            "suggestion", "请根据业务实际进一步核实"
-                    )
-            ), Set.of("title", "level", "description", "suggestion"));
+                    """, List.of(), Set.of("title", "level", "description", "suggestion"));
             List<RiskItem> items = toRiskItems(normalized.json());
             Map<String, Object> variables = modelOutputVariables(context, "risk", normalized);
             variables.put("riskJson", normalized.json());
@@ -704,7 +697,7 @@ public class LegalOrchestratorService {
         private List<RiskItem> toRiskItems(String json) {
             List<Map<String, Object>> parsed = parseJsonArray(json);
             if (parsed == null || parsed.isEmpty()) {
-                return List.of(new RiskItem("风险清单", RiskLevel.MEDIUM, "模型未返回可解析的风险项", "请由法律专业人员核实"));
+                return List.of();
             }
             return parsed.stream().map(item -> new RiskItem(
                     stringValue(item.get("title"), "未命名风险"),
