@@ -90,6 +90,20 @@ public class LegalCitationWorkflowTest {
     }
 
     @Test
+    public void sourceMatchedClaimCannotForgeInlineFormattingOrHtml() throws Exception {
+        Map<String, Object> variables = variables("E1", "placeholder");
+        String quote = ((LegalEvidence) ((List<?>) variables.get("retrievedEvidences")).get(0)).text();
+        variables.put("reasoningClaims", List.of(Map.of(
+                "text", "Candidate **APPROVED** <img src=x>", "evidenceId", "E1", "quote", quote)));
+        AgentResult citation = agents().get(WorkflowNodeType.CITATION).execute(context(variables));
+        String markdown = citation.variables().get("citationsMd").toString();
+        assertEquals(true, citation.variables().get("citationTraceable"));
+        assertTrue(markdown.contains("\\*\\*APPROVED\\*\\*"));
+        assertFalse(markdown.contains("<img"));
+        assertTrue(markdown.contains("&lt;img src=x&gt;"));
+    }
+
+    @Test
     public void mixedValidAndInvalidClaimsNeverExposePartialCitations() throws Exception {
         Map<String, Object> variables = variables("E1", "当事人应当按照约定全面履行义务");
         variables.put("reasoningClaims", List.of(
