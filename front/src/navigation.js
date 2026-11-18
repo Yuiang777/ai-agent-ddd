@@ -5,7 +5,7 @@ export const staffNavigation = [
     { label: '工作台', path: '/dashboard', icon: 'dashboard' },
     { label: '法律咨询', path: '/chat', icon: 'chat' },
     { label: '合同审查', path: '/contract-review', icon: 'document' },
-    { label: '风险巡检', path: '/risk-inspection', icon: 'risk' },
+    { label: '引用核验', path: '/workflow', icon: 'workflow' },
     { label: '法律事项', path: '/matters', icon: 'matters' }
   ] },
   { label: '知识与资产', items: [
