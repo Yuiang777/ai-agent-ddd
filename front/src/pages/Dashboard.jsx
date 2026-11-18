@@ -6,7 +6,7 @@ import DescriptionRoundedIcon from '@mui/icons-material/DescriptionRounded'
 import EventNoteRoundedIcon from '@mui/icons-material/EventNoteRounded'
 import ForumRoundedIcon from '@mui/icons-material/ForumRounded'
 import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded'
-import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded'
+import FactCheckRoundedIcon from '@mui/icons-material/FactCheckRounded'
 import { useNavigate } from 'react-router-dom'
 import { businessLabels, statusLabels } from '../api/matters'
 import { validatedMatterItems, workflowRunCount } from '../api/dashboardMetrics'
@@ -230,7 +230,7 @@ function StaffDashboard() {
 
       <Grid container spacing={2} alignItems="stretch">
         <Grid item xs={12} md={5}><SectionCard title="最近咨询" action={<Button size="small" onClick={() => navigate('/chat')}>进入顾问</Button>}><Stack spacing={1.25}><Typography variant="body2" color="text.secondary">当前后端未提供会话列表查询接口。新建咨询后，记录会在具备会话存储和审计服务时显示。</Typography></Stack></SectionCard></Grid>
-        <Grid item xs={12} md={7}><SectionCard title="快捷入口" description="围绕律务日常工作的高频操作"><Grid container spacing={1}>{[['合同审查', '上传合同并生成风险清单', DescriptionRoundedIcon, '/contract-review'], ['风险巡检', '查看巡检服务接入状态', WarningAmberRoundedIcon, '/risk-inspection'], ['事项管理', '查看案件阶段、证据和期限', EventNoteRoundedIcon, '/matters'], ['企业知识库', '管理当前租户授权文档', MenuBookRoundedIcon, '/knowledge-base']].map(([label, desc, Icon, path]) => <Grid item xs={12} sm={6} key={label}><Button onClick={() => navigate(path)} fullWidth sx={{ p: 1.25, justifyContent: 'flex-start', textAlign: 'left', border: '1px solid', borderColor: 'divider', color: 'text.primary' }}><Icon sx={{ mr: 1, color: 'primary.main' }} /><Box><Typography variant="subtitle2" sx={{ fontWeight: 800 }}>{label}</Typography><Typography variant="caption" color="text.secondary">{desc}</Typography></Box></Button></Grid>)}</Grid></SectionCard></Grid>
+        <Grid item xs={12} md={7}><SectionCard title="快捷入口" description="围绕律务日常工作的高频操作"><Grid container spacing={1}>{[['合同审查', '上传合同并生成风险清单', DescriptionRoundedIcon, '/contract-review'], ['引用核验', '运行工作流并检查来源状态', FactCheckRoundedIcon, '/workflow'], ['事项管理', '查看案件阶段、证据和期限', EventNoteRoundedIcon, '/matters'], ['企业知识库', '管理当前租户授权文档', MenuBookRoundedIcon, '/knowledge-base']].map(([label, desc, Icon, path]) => <Grid item xs={12} sm={6} key={label}><Button onClick={() => navigate(path)} fullWidth sx={{ p: 1.25, justifyContent: 'flex-start', textAlign: 'left', border: '1px solid', borderColor: 'divider', color: 'text.primary' }}><Icon sx={{ mr: 1, color: 'primary.main' }} /><Box><Typography variant="subtitle2" sx={{ fontWeight: 800 }}>{label}</Typography><Typography variant="caption" color="text.secondary">{desc}</Typography></Box></Button></Grid>)}</Grid></SectionCard></Grid>
       </Grid>
     </PageShell>
   )

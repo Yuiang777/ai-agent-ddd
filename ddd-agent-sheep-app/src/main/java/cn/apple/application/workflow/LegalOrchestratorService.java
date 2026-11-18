@@ -900,8 +900,12 @@ public class LegalOrchestratorService {
     }
 
     private String citationInline(Object value) {
-        return String.valueOf(value).replace('\r', ' ').replace('\n', ' ')
+        return String.valueOf(value).replace("\\", "\\\\").replace('\r', ' ').replace('\n', ' ')
                 .replace((char) 0x2028, ' ').replace((char) 0x2029, ' ')
+                .replace("*", "\\*").replace("_", "\\_")
+                .replace(String.valueOf((char) 96), "\\" + (char) 96)
+                .replace("~", "\\~").replace("|", "\\|")
+                .replace("<", "&lt;").replace(">", "&gt;")
                 .replace('[', '［').replace(']', '］').replace('(', '（').replace(')', '）');
     }
 

@@ -4,11 +4,35 @@ import cn.apple.domain.legal.model.valobj.LegalDocumentChunk;
 import cn.apple.domain.legal.model.valobj.LegalKnowledgeMetadata;
 import org.junit.Test;
 import org.springframework.ai.document.Document;
+import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.test.context.support.TestPropertySourceUtils;
+
+import java.lang.reflect.Proxy;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 public class LegalDocumentRepositoryMetadataTest {
+
+    @Test
+    public void shouldWireRepositoryWithInfrastructureEnabled() {
+        try (var context = new AnnotationConfigApplicationContext()) {
+            TestPropertySourceUtils.addInlinedPropertiesToEnvironment(context,
+                    "app.infrastructure.enabled=true");
+            VectorStore vectorStore = (VectorStore) Proxy.newProxyInstance(
+                    VectorStore.class.getClassLoader(), new Class<?>[]{VectorStore.class},
+                    (proxy, method, args) -> null);
+            context.registerBean("vectorStore", VectorStore.class, () -> vectorStore);
+            context.registerBean("pgVectorJdbcTemplate", JdbcTemplate.class,
+                    () -> new JdbcTemplate(new DriverManagerDataSource()));
+            context.register(LegalDocumentRepository.class);
+            context.refresh();
+            assertNotNull(context.getBean(LegalDocumentRepository.class));
+        }
+    }
 
     @Test
     public void shouldMarkFilesystemOwnershipAndVersionCompletenessMetadata() {

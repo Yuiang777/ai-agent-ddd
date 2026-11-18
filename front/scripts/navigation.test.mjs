@@ -10,6 +10,14 @@ test('client navigation contains only customer-facing services', () => {
   assert.ok(!paths.includes('/settings'))
 })
 
+test('staff navigation exposes citation workflow instead of unavailable risk inspection', () => {
+  for (const role of ['LAWYER', 'PARALEGAL', 'SYSTEM']) {
+    const paths = navigationForRole(role).flatMap(group => group.items.map(item => item.path))
+    assert.ok(paths.includes('/workflow'))
+    assert.ok(!paths.includes('/risk-inspection'))
+  }
+})
+
 test('customer audience is fail-closed when role is missing or unknown', () => {
   for (const role of [undefined, null, 'UNKNOWN', 'CLIENT']) assert.equal(isClientAudience(role), true)
   for (const role of ['LAWYER', 'PARALEGAL', 'SYSTEM']) assert.equal(isClientAudience(role), false)

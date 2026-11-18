@@ -11,6 +11,7 @@ import cn.apple.domain.legal.model.valobj.LegalKnowledgeMetadata;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.reader.tika.TikaDocumentReader;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
@@ -62,6 +63,7 @@ public class LegalDocumentRepository implements ILegalDocumentRepository {
     private final Path manifestDir;
     private final long maxSourceBytes;
 
+    @Autowired
     public LegalDocumentRepository(@Qualifier("vectorStore") VectorStore vectorStore,
                                    @Qualifier("pgVectorJdbcTemplate") JdbcTemplate pgVectorJdbcTemplate,
                                    @Value("${app.legal.knowledge.ingestion-batch-size:64}") int ingestionBatchSize,
