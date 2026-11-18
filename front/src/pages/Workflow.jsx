@@ -12,6 +12,7 @@ import SectionCard from '../components/SectionCard'
 import { adminHeaders } from '../api/client'
 import { readSseEvents } from '../api/sse'
 import { validateWorkflowResult, finalizedWorkflowReport, isPublishableWorkflowResult, displayableItems, displayableCitations, displayableReviewReasons } from '../api/workflowResult'
+import { summarizeWorkflowEvent } from '../api/workflowEvents'
 import ReportRegistration from '../components/matters/ReportRegistration'
 
 function nowId() {
@@ -252,7 +253,7 @@ export default function Workflow() {
   const onWorkflowEvent = (eventName, dataText) => {
     const parsed = safeJsonParse(dataText)
     const payload = parsed || { raw: dataText }
-    setEvents(prev => [{ id: nowId(), event: eventName, payload }, ...prev].slice(0, 200))
+    setEvents(prev => [{ id: nowId(), ...summarizeWorkflowEvent(eventName, payload, nodes.map(node => node.id), Object.keys(eventLabels)) }, ...prev].slice(0, 200))
 
     const nodeId = nodes.some(node => node.id === payload?.nodeId) ? payload.nodeId : null
     if (eventName === 'NODE_STARTED' && nodeId) setNodeState(prev => ({ ...prev, [nodeId]: 'running' }))
@@ -417,7 +418,7 @@ export default function Workflow() {
           litigationStrategy: result?.variables?.litigationStrategy,
           lawyerReviewStatus: result?.variables?.lawyerReviewStatus
         } : {})
-        setEvents([{ id: nowId(), event: 'RUN', payload: result }])
+        setEvents([{ id: nowId(), ...summarizeWorkflowEvent('RUN', result, nodes.map(node => node.id), Object.keys(eventLabels)) }])
         return
       }
       throw new Error(json?.message || text || '执行失败')
@@ -545,7 +546,7 @@ export default function Workflow() {
           </SectionCard>
         </Grid>
         <Grid item xs={12} lg={4} sx={{ order: { xs: 2, lg: 1 } }}>
-          <SectionCard title="执行记录" description="展示每个节点的事件、输出与耗时，便于审计与复盘。" sx={{ height: '100%' }}>
+          <SectionCard title="执行记录" description="仅保留节点事件与耗时，不在事件历史中缓存原始响应。" sx={{ height: '100%' }}>
             <Stack spacing={1} sx={{ maxHeight: 560, overflow: 'auto', pr: 0.5 }}>
               {events.length === 0 ? (
                 <Alert severity="info">还没有事件。点击“实时执行”开始。</Alert>
@@ -554,13 +555,10 @@ export default function Workflow() {
                   <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
                     <Typography variant="subtitle2" title={e.event}>{Object.hasOwn(eventLabels, e.event) ? eventLabels[e.event] : '流程事件'}</Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {[e.payload?.nodeId, e.payload?.nodeType].find(value => typeof value === 'string' && value.trim()) || 'workflow'}
-                      {typeof e.payload?.data?.costMs === 'number' && Number.isFinite(e.payload.data.costMs) ? ` · ${e.payload.data.costMs}ms` : ''}
+                      {e.nodeId || 'workflow'}
+                      {e.costMs !== null ? ` · ${e.costMs}ms` : ''}
                     </Typography>
                   </Stack>
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, whiteSpace: 'pre-wrap' }}>
-                    {typeof e.payload?.message === 'string' ? e.payload.message : ''}
-                  </Typography>
                 </Box>
               ))}
             </Stack>
