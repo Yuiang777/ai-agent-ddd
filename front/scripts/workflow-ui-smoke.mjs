@@ -272,14 +272,20 @@ try {
   }
   await page.route('**/api/governance/readiness', route => route.fulfill({ json: { success: true, data: { capabilities: { model_runtime: { status: 'CONFIGURED_UNVERIFIED' } } } } }))
   await page.route('**/api/workflows/uploads/authorize', route => route.fulfill({ json: { success: true, data: { token: 'MOCK-CONTRACT-TOKEN' } } }))
-  for (const status of ['SUCCESS', 'REVIEW_REQUIRED', 'BLOCKED', 'FAILED', 'LATE_FAILURE']) {
+  for (const [status, runId, legacyAuditId] of [
+    ...['SUCCESS', 'REVIEW_REQUIRED', 'BLOCKED', 'FAILED', 'LATE_FAILURE'].map(status => [status, 'MOCK-CONTRACT-RUN']),
+    ['SUCCESS', undefined, 'LEGACY-AUDIT-NOT-A-RUN'],
+    ['REVIEW_REQUIRED', { invalid: true }],
+    ['SUCCESS', 42],
+    ['SUCCESS', '   ']
+  ]) {
     const data = {
-      status: status === 'LATE_FAILURE' ? 'SUCCESS' : status, finalOutput: 'CONTRACT_REPORT_MARKER',
+      status: status === 'LATE_FAILURE' ? 'SUCCESS' : status, finalOutput: 'CONTRACT_REPORT_MARKER', auditId: legacyAuditId,
       riskItems: [null, { title: { invalid: true } }, { title: 'CONTRACT_RISK_MARKER', description: { invalid: true } }],
       citationItems: [null, { title: 'NO_SOURCE' }, { title: 'MOCK_SOURCE', source: 'fixture-source', excerpt: 'fixture-quote' }]
     }
     await page.route('**/api/workflows/run/stream/upload', route => route.fulfill({ contentType: 'text/event-stream',
-      body: 'event: WORKFLOW_COMPLETED\ndata: ' + JSON.stringify({ runId: 'MOCK-CONTRACT-RUN', data }) + '\n\n' +
+      body: 'event: WORKFLOW_COMPLETED\ndata: ' + JSON.stringify({ runId, data }) + '\n\n' +
         (status === 'LATE_FAILURE' ? 'event: WORKFLOW_FAILED\ndata: {"message":"MOCK_LATE_FAILURE"}\n\n' : '') }))
     await page.goto(origin + '/contract-review')
     await page.locator('input[type=file]').setInputFiles({ name: 'mock-contract.pdf', mimeType: 'application/pdf', buffer: Buffer.from('Mock file; parser is not exercised.') })
@@ -292,6 +298,12 @@ try {
       await page.getByText('附来源与摘录的候选引用： 1 条；原文、版本与法律适用仍需人工核验。', { exact: true }).waitFor()
       await page.getByText('模型提供的依据（未核验）： 未返回可核验引用', { exact: true }).waitFor()
       assert.equal(await page.getByRole('button', { name: '打印当前报告', exact: true }).isEnabled(), true)
+      const missingRunId = typeof runId !== 'string' || !runId.trim()
+      assert.equal(await page.getByText('运行编号缺失，本次报告不能登记；请重新执行并核对服务响应。', { exact: true }).count(), missingRunId ? 1 : 0)
+      if (missingRunId) {
+        assert.equal(await page.getByRole('button', { name: '确认登记为报告新版本', exact: true }).isDisabled(), true)
+        assert.equal((await page.locator('main').innerText()).includes('LEGACY-AUDIT-NOT-A-RUN'), false)
+      }
     } else {
       await page.getByText('本次审查未完成，未展示风险结论或引用。请检查错误后重新提交。', { exact: true }).waitFor()
       assert.equal((await page.locator('main').innerText()).includes('CONTRACT_REPORT_MARKER'), false)
@@ -301,7 +313,7 @@ try {
     }
     assert.deepEqual(errors, [])
     await page.unroute('**/api/workflows/run/stream/upload')
-    console.log('PASS mocked contract ' + status + ' protects report visibility and malformed structured fields')
+    console.log('PASS mocked contract ' + status + ' protects report visibility, fields and terminal run ID (' + (typeof runId === 'string' && runId.trim() ? 'present' : 'missing/invalid') + ')')
   }
   await page.goto(origin + '/risk-inspection')
   assert.equal(await page.getByRole('button', { name: '巡检未开放', exact: true }).isDisabled(), true)

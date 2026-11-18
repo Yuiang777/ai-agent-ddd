@@ -89,7 +89,7 @@ export default function ContractReview() {
           setRiskItems(displayableItems(data.riskItems, ['title', 'level', 'article', 'articleNo', 'location', 'description', 'text', 'suggestion', 'law', 'source', 'citation']).map(normalizeRisk))
           setCitations(displayableCitations(data.citationItems))
           setReport(data.finalOutput)
-          setAuditId(payload.runId || data.auditId || '')
+          setAuditId(typeof payload.runId === 'string' ? payload.runId.trim() : '')
         }
         if (eventName === 'WORKFLOW_FAILED') throw new Error(payload.message || '工作流执行失败')
       })
