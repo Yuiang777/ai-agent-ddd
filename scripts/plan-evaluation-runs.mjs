@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
-import { readJsonl } from './legal-citation-evaluation.mjs'
+import { parseJsonl } from './legal-citation-evaluation.mjs'
 
 const groups = ['direct', 'rag', 'verified']
 const hash = value => createHash('sha256').update(value).digest('hex')
@@ -11,7 +11,8 @@ export async function planRuns(file, rounds, seed) {
       typeof seed !== 'string' || !seed.trim()) {
     throw new Error('轮次数须为 1–100 的整数，随机种子不能为空')
   }
-  const questions = await readJsonl(file)
+  const manifestBytes = await fs.readFile(file)
+  const questions = parseJsonl(manifestBytes)
   if (!questions.length) throw new Error('题目清单不能为空')
   const seen = new Set()
   for (const [index, question] of questions.entries()) {
@@ -29,7 +30,7 @@ export async function planRuns(file, rounds, seed) {
     if (seen.has(question.questionId)) throw new Error(at + '问题 ID 重复')
     seen.add(question.questionId)
   }
-  const manifestSha256 = hash(await fs.readFile(file))
+  const manifestSha256 = hash(manifestBytes)
   return questions.flatMap(({ questionId, lawAsOf }) =>
     Array.from({ length: rounds }, (_, index) => {
       const run = index + 1
