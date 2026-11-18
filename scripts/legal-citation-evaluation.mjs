@@ -72,6 +72,7 @@ export function evaluate(records, frozenQuestions) {
   if (frozenQuestions !== undefined) {
     required(Array.isArray(frozenQuestions) && frozenQuestions.length > 0, '冻结题目清单不能为空')
     const frozenDates = new Map()
+    const frozenAnswerability = new Map()
     for (const question of frozenQuestions) {
       required(question && typeof question === 'object' && !Array.isArray(question)
         && typeof question.questionId === 'string' && question.questionId.trim()
@@ -81,14 +82,18 @@ export function evaluate(records, frozenQuestions) {
         && !Number.isNaN(Date.parse(question.lawAsOf))
         && new Date(question.lawAsOf).toISOString().slice(0, 10) === question.lawAsOf,
       '冻结题目清单的法律适用日期无效')
+      required(typeof question.answerable === 'boolean', '冻结题目清单缺少布尔型 answerable 金标准')
       required(!frozenDates.has(question.questionId), '冻结题目清单的问题 ID 重复')
       frozenDates.set(question.questionId, question.lawAsOf)
+      frozenAnswerability.set(question.questionId, question.answerable)
     }
     required(frozenDates.size === legalDates.size
       && [...frozenDates.keys()].every(questionId => legalDates.has(questionId)),
     '标注记录必须完整覆盖冻结题目清单，不能漏题或增加题目')
     required([...frozenDates].every(([questionId, date]) => legalDates.get(questionId) === date),
       '标注记录与冻结题目清单的法律适用日期不一致')
+    required([...frozenAnswerability].every(([questionId, expected]) => answerability.get(questionId) === expected),
+      '标注记录的可回答标注与冻结题目金标准不一致')
   }
   const rounds = new Map()
   for (const record of records.filter(item => item.group === 'direct')) {
