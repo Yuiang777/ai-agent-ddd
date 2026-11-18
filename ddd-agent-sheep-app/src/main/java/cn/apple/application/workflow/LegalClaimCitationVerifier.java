@@ -61,6 +61,11 @@ public class LegalClaimCitationVerifier {
         if (metadata == null || blank(value(metadata.get(LegalKnowledgeMetadata.DOCUMENT_VERSION)))
                 || blank(value(metadata.get(LegalKnowledgeMetadata.SOURCE_CHECKSUM))))
             return "SOURCE_VERSION_MISSING";
+        String metadataDocumentId = value(metadata.get(LegalKnowledgeMetadata.DOC_ID));
+        String metadataSourcePath = value(metadata.get(LegalKnowledgeMetadata.SOURCE_PATH));
+        if ((!metadataDocumentId.isBlank() && !metadataDocumentId.equals(evidence.docId()))
+                || (!metadataSourcePath.isBlank() && !metadataSourcePath.equals(evidence.sourcePath())))
+            return "SOURCE_LOCATION_MISMATCH";
         String effectiveDate = value(metadata.get(LegalKnowledgeMetadata.EFFECTIVE_DATE));
         if (!effectiveDate.isBlank()) {
             try {
