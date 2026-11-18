@@ -165,16 +165,18 @@ test('CLI evaluates UTF-8 files outside the project and emits no scores on inval
 
 test('checks complete frozen question coverage even when all groups omit the same question', () => {
   const rows = ['direct', 'rag', 'verified'].map(group => caseRow(group, []))
-  const frozen = [{ questionId: 'q1', lawAsOf: '2026-01-01' }]
+  const frozen = [{ questionId: 'q1', lawAsOf: '2026-01-01', answerable: true }]
   assert.equal(evaluate(rows)[0].frozenQuestionCoverageChecked, false)
   assert.ok(evaluate(rows, frozen).every(result => result.frozenQuestionCoverageChecked))
-  assert.throws(() => evaluate(rows, [...frozen, { questionId: 'q2', lawAsOf: '2026-01-01' }]), /完整覆盖/)
-  assert.throws(() => evaluate(rows, [{ questionId: 'other-question', lawAsOf: '2026-01-01' }]), /完整覆盖/)
-  assert.throws(() => evaluate(rows, [{ questionId: 'q1', lawAsOf: '2026-01-02' }]), /日期不一致/)
+  assert.throws(() => evaluate(rows, [...frozen, { questionId: 'q2', lawAsOf: '2026-01-01', answerable: true }]), /完整覆盖/)
+  assert.throws(() => evaluate(rows, [{ questionId: 'other-question', lawAsOf: '2026-01-01', answerable: true }]), /完整覆盖/)
+  assert.throws(() => evaluate(rows, [{ questionId: 'q1', lawAsOf: '2026-01-02', answerable: true }]), /日期不一致/)
+  assert.throws(() => evaluate(rows, [{ questionId: 'q1', lawAsOf: '2026-01-01', answerable: false }]), /可回答标注.*冻结题目/)
+  assert.throws(() => evaluate(rows, [{ questionId: 'q1', lawAsOf: '2026-01-01' }]), /缺少.*answerable/)
   assert.throws(() => evaluate(rows, []), /不能为空/)
   assert.throws(() => evaluate(rows, [...frozen, ...frozen]), /ID 重复/)
-  assert.throws(() => evaluate(rows, [{ questionId: ' q1 ', lawAsOf: '2026-01-01' }]), /ID 无效/)
-  assert.throws(() => evaluate(rows, [{ questionId: 'q1', lawAsOf: '2026-02-30' }]), /日期无效/)
+  assert.throws(() => evaluate(rows, [{ questionId: ' q1 ', lawAsOf: '2026-01-01', answerable: true }]), /ID 无效/)
+  assert.throws(() => evaluate(rows, [{ questionId: 'q1', lawAsOf: '2026-02-30', answerable: true }]), /日期无效/)
 })
 
 test('CLI checks the supplied frozen manifest and emits no scores on omitted questions', async () => {
@@ -185,14 +187,23 @@ test('CLI checks the supplied frozen manifest and emits no scores on omitted que
   const rows = ['direct', 'rag', 'verified'].map(group => caseRow(group, []))
   try {
     await fs.writeFile(file, rows.map(JSON.stringify).join('\n'))
-    await fs.writeFile(manifest, JSON.stringify({ questionId: 'q1', lawAsOf: '2026-01-01' }))
+    await fs.writeFile(manifest, JSON.stringify({ questionId: 'q1', lawAsOf: '2026-01-01', answerable: true }))
     const success = spawnSync(process.execPath, [script, file, manifest], {
       cwd: directory, encoding: 'utf8', timeout: 10000,
     })
     assert.ifError(success.error)
     assert.equal(success.status, 0, success.stderr)
     assert.ok(JSON.parse(success.stdout).every(result => result.frozenQuestionCoverageChecked))
-    await fs.appendFile(manifest, '\n' + JSON.stringify({ questionId: 'q2', lawAsOf: '2026-01-01' }))
+    await fs.writeFile(manifest, JSON.stringify({ questionId: 'q1', lawAsOf: '2026-01-01', answerable: false }))
+    const mislabeled = spawnSync(process.execPath, [script, file, manifest], {
+      cwd: directory, encoding: 'utf8', timeout: 10000,
+    })
+    assert.ifError(mislabeled.error)
+    assert.equal(mislabeled.status, 1)
+    assert.equal(mislabeled.stdout, '')
+    assert.match(mislabeled.stderr, /可回答标注.*冻结题目/)
+    await fs.writeFile(manifest, JSON.stringify({ questionId: 'q1', lawAsOf: '2026-01-01', answerable: true }))
+    await fs.appendFile(manifest, '\n' + JSON.stringify({ questionId: 'q2', lawAsOf: '2026-01-01', answerable: true }))
     const failure = spawnSync(process.execPath, [script, file, manifest], {
       cwd: directory, encoding: 'utf8', timeout: 10000,
     })
