@@ -3,6 +3,7 @@ package cn.apple.config;
 import cn.apple.application.workflow.LegalClaimCitationVerifier;
 import cn.apple.domain.legal.model.valobj.LegalKnowledgeMetadata;
 import cn.apple.domain.legal.model.valobj.LegalRetrievalRequest;
+import cn.apple.domain.legal.model.valobj.LegalRetrievalStatus;
 import cn.apple.domain.legal.service.LegalEvidenceContextAssembler;
 import cn.apple.domain.legal.service.LegalHybridRetrievalService;
 import cn.apple.domain.legal.service.LegalScopeRouter;
@@ -92,5 +93,22 @@ public class LocalLegalRetrievalSmokeTest {
                 "合成未知证据编号负例", "E" + (result.evidences().size() + 1), excerpt)), result.evidences());
         assertFalse(rejectedReference.traceable());
         assertEquals("EVIDENCE_ID_UNKNOWN", rejectedReference.findings().get(0).status());
+
+        LegalRetrievalRequest absentArticle = new LegalRetrievalRequest(
+                request.query(),
+                "law_name == '中华人民共和国数据安全法_20210610' && article_no == '第一千条'",
+                5, 10, 10);
+        var absentResult = service.retrieveWithDiagnostics(absentArticle);
+        assertTrue("empty vector results must not be reported as a failed channel",
+                absentResult.diagnostics().vector().available());
+        assertTrue("empty keyword results must not be reported as a failed channel",
+                absentResult.diagnostics().keyword().available());
+        assertEquals(0, absentResult.diagnostics().vector().resultCount());
+        assertEquals(0, absentResult.diagnostics().keyword().resultCount());
+        assertTrue("unmatched article filter must not fall back to a different article",
+                absentResult.evidences().isEmpty());
+        assertTrue(absentResult.context().isBlank());
+        assertEquals(LegalRetrievalStatus.INSUFFICIENT, absentResult.diagnostics().status());
+        assertFalse(absentResult.safeForReasoning());
     }
 }
