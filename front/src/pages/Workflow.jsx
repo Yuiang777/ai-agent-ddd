@@ -611,7 +611,7 @@ export default function Workflow() {
             </SectionCard>
           </Grid>
           <Grid item xs={12} lg={6}>
-            <SectionCard title={`来源信息齐全的候选引用 (${citations.length})`} description="只校验原文匹配和来源元数据；法律结论的语义支持与适用性仍需人工复核。">
+            <SectionCard title={`附来源与摘录的候选引用 (${citations.length})`} description="页面仅筛选非空来源与摘录；原文匹配、版本、时效及法律适用仍需结合原件人工复核。">
               <Stack spacing={1}>
                 {citations.length ? citations.map((citation, index) => (
                   <Box key={`${citation.title}-${citation.articleNo}-${index}`} sx={{ borderLeft: '3px solid', borderColor: 'primary.main', pl: 1.5, py: 0.5 }}>
@@ -619,7 +619,7 @@ export default function Workflow() {
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{citation.excerpt || '未提供条文摘录'}</Typography>
                     {citation.source ? <Typography variant="caption" color="text.secondary">来源：{citation.source}</Typography> : null}
                   </Box>
-                )) : <Alert severity="warning">没有全部通过来源匹配的候选主张；不得据此出具法律意见。</Alert>}
+                )) : <Alert severity="warning">没有可显示的来源与摘录条目；不得据此出具法律意见。</Alert>}
               </Stack>
             </SectionCard>
           </Grid>

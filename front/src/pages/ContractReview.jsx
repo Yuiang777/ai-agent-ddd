@@ -89,7 +89,7 @@ export default function ContractReview() {
           setRiskItems(displayableItems(data.riskItems, ['title', 'level', 'article', 'articleNo', 'location', 'description', 'text', 'suggestion', 'law', 'source', 'citation']).map(normalizeRisk))
           setCitations(displayableCitations(data.citationItems))
           setReport(data.finalOutput)
-          setAuditId(payload.runId || data.auditId || '')
+          setAuditId(typeof payload.runId === 'string' ? payload.runId.trim() : '')
         }
         if (eventName === 'WORKFLOW_FAILED') throw new Error(payload.message || '工作流执行失败')
       })
@@ -152,8 +152,8 @@ export default function ContractReview() {
               <Box sx={{ width: { xs: '100%', lg: 480 }, p: 2 }}>
                 <Stack direction="row" justifyContent="space-between" alignItems="center"><Typography variant="h6" sx={{ fontWeight: 800 }}>风险清单</Typography><Chip label={`${riskItems.length} 项`} color={riskItems.length ? 'error' : 'default'} variant="outlined" /></Stack>
                 {!riskItems.length && <Alert severity="info" sx={{ mt: 1.5 }}>未返回结构化风险项，不能据此认定合同没有风险。</Alert>}
-                <Stack spacing={1.25} sx={{ mt: 1.5 }}>{riskItems.map(item => <Box key={`${item.title}-${item.article}`} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1.5 }}><Stack direction="row" spacing={0.75} alignItems="center"><Chip size="small" label={riskPresentation(item.level).label} color={riskPresentation(item.level).color} /><Typography variant="caption" color="text.secondary">{item.article}</Typography></Stack><Typography variant="subtitle2" sx={{ mt: 0.75, fontWeight: 800 }}>{item.title}</Typography><Typography variant="body2" sx={{ mt: 0.75, lineHeight: 1.6 }}>{item.text}</Typography><Typography variant="body2" color="primary.dark" sx={{ mt: 0.75 }}>修改建议： {item.suggestion}</Typography><Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>依据： {item.law}</Typography></Box>)}</Stack>
-                {citations.length > 0 && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>来源与摘录齐全的候选引用： {citations.length} 条；法律适用仍需人工核验。</Typography>}
+                <Stack spacing={1.25} sx={{ mt: 1.5 }}>{riskItems.map(item => <Box key={`${item.title}-${item.article}`} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1.5 }}><Stack direction="row" spacing={0.75} alignItems="center"><Chip size="small" label={riskPresentation(item.level).label} color={riskPresentation(item.level).color} /><Typography variant="caption" color="text.secondary">{item.article}</Typography></Stack><Typography variant="subtitle2" sx={{ mt: 0.75, fontWeight: 800 }}>{item.title}</Typography><Typography variant="body2" sx={{ mt: 0.75, lineHeight: 1.6 }}>{item.text}</Typography><Typography variant="body2" color="primary.dark" sx={{ mt: 0.75 }}>修改建议： {item.suggestion}</Typography><Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>模型提供的依据（未核验）： {item.law}</Typography></Box>)}</Stack>
+                {citations.length > 0 && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>附来源与摘录的候选引用： {citations.length} 条；原文、版本与法律适用仍需人工核验。</Typography>}
               </Box>
             </Stack>
           </Paper>
