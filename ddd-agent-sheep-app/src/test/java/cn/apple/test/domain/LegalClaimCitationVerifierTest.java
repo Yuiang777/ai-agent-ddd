@@ -116,6 +116,25 @@ public class LegalClaimCitationVerifierTest {
     }
 
     @Test
+    public void rejectsSourceIdentityThatDisagreesWithRetrievedMetadata() {
+        Map<String, Object> matching = new java.util.HashMap<>(metadata("2020-01-01"));
+        matching.put(LegalKnowledgeMetadata.DOC_ID, "document-1");
+        matching.put(LegalKnowledgeMetadata.SOURCE_PATH, "/example/source");
+        assertEquals("SOURCE_MATCHED", verifier.verify(List.of(claim("E1", excerpt)),
+                List.of(evidence(matching))).findings().get(0).status());
+
+        Map<String, Object> wrongDocument = new java.util.HashMap<>(metadata("2020-01-01"));
+        wrongDocument.put(LegalKnowledgeMetadata.DOC_ID, "different-document");
+        assertEquals("SOURCE_LOCATION_MISMATCH", verifier.verify(List.of(claim("E1", excerpt)),
+                List.of(evidence(wrongDocument))).findings().get(0).status());
+
+        Map<String, Object> wrongPath = new java.util.HashMap<>(metadata("2020-01-01"));
+        wrongPath.put(LegalKnowledgeMetadata.SOURCE_PATH, "/another/source");
+        assertEquals("SOURCE_LOCATION_MISMATCH", verifier.verify(List.of(claim("E1", excerpt)),
+                List.of(evidence(wrongPath))).findings().get(0).status());
+    }
+
+    @Test
     public void rejectsMalformedClaimsAndNoClaims() {
         assertFalse(verifier.verify(List.of(), List.of()).traceable());
         assertEquals("CLAIM_OR_REFERENCE_MISSING", verifier.verify(
