@@ -1,5 +1,6 @@
 package cn.apple.test.domain;
 
+import cn.apple.application.agent.AiClientRuntimeService;
 import cn.apple.application.workflow.LegalOrchestratorService;
 import cn.apple.domain.legal.model.valobj.LegalEvidence;
 import cn.apple.domain.legal.model.valobj.LegalKnowledgeMetadata;
@@ -73,6 +74,25 @@ public class LegalCitationWorkflowTest {
         AgentResult risk = agents().get(WorkflowNodeType.RISK).execute(context(variables));
         assertTrue(risk.variables().containsKey("riskReviewReasons"));
         assertTrue(risk.risks().get(0).description().contains("已核验来源"));
+    }
+
+    @Test
+    public void invalidRiskOutputDoesNotInventMediumRisk() throws Exception {
+        AiClientRuntimeService invalidRuntime = new AiClientRuntimeService(null, null, true, 1, 2, 1000) {
+            @Override
+            public String invokeText(String clientId, String operation, String prompt) {
+                return "invalid";
+            }
+        };
+        Map<String, Object> variables = variables("E1", "当事人应当按照约定全面履行义务");
+        variables.put("citationTraceable", true);
+
+        AgentResult risk = agents(invalidRuntime).get(WorkflowNodeType.RISK).execute(context(variables));
+
+        assertTrue(risk.risks().isEmpty());
+        assertEquals("[]", risk.variables().get("riskJson"));
+        assertEquals(true, risk.variables().get("riskModelOutputFallbackUsed"));
+        assertFalse(((List<?>) risk.variables().get("modelOutputReviewReasons")).isEmpty());
     }
 
     @Test
@@ -210,7 +230,12 @@ public class LegalCitationWorkflowTest {
 
     @SuppressWarnings("unchecked")
     private Map<WorkflowNodeType, Agent> agents() throws Exception {
-        LegalOrchestratorService service = new LegalOrchestratorService(null, null, null);
+        return agents(null);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<WorkflowNodeType, Agent> agents(AiClientRuntimeService runtime) throws Exception {
+        LegalOrchestratorService service = new LegalOrchestratorService(runtime, null, null);
         Method method = LegalOrchestratorService.class.getDeclaredMethod("buildAgents", String.class, String.class, String.class);
         method.setAccessible(true);
         return (Map<WorkflowNodeType, Agent>) method.invoke(service, "test", null, null);
