@@ -167,6 +167,8 @@ try {
   await page.getByRole('button', { name: '同步执行', exact: true }).click()
   await page.getByText('STRUCTURED_REPORT', { exact: true }).waitFor()
   assert.equal(await page.getByText('GOOD_CITATION', { exact: true }).count(), 1)
+  assert.equal(await page.getByText('附来源与摘录的候选引用 (1)', { exact: true }).count(), 1)
+  assert.equal(await page.getByText(/页面仅筛选非空来源与摘录/).count(), 1)
   assert.equal(await page.getByText('BAD_CITATION', { exact: true }).count(), 0)
   assert.equal(await page.getByText('NO_QUOTE', { exact: true }).count(), 0)
   assert.equal(await page.getByText('GOOD_RISK', { exact: true }).count(), 1)
@@ -287,7 +289,8 @@ try {
       await page.getByText('CONTRACT_RISK_MARKER', { exact: true }).waitFor()
       assert.equal(await page.getByText('等级待确认', { exact: true }).count(), 1)
       assert.equal(await page.getByText('中风险', { exact: true }).count(), 0)
-      await page.getByText('来源与摘录齐全的候选引用： 1 条；法律适用仍需人工核验。', { exact: true }).waitFor()
+      await page.getByText('附来源与摘录的候选引用： 1 条；原文、版本与法律适用仍需人工核验。', { exact: true }).waitFor()
+      await page.getByText('模型提供的依据（未核验）： 未返回可核验引用', { exact: true }).waitFor()
       assert.equal(await page.getByRole('button', { name: '打印当前报告', exact: true }).isEnabled(), true)
     } else {
       await page.getByText('本次审查未完成，未展示风险结论或引用。请检查错误后重新提交。', { exact: true }).waitFor()
