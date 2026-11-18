@@ -31,6 +31,7 @@ public class AiAgentConfig {
     public PgVectorStore pgVectorStore(@Value("${spring.ai.embedding.base-url:${spring.ai.openai.base-url}}") String embeddingBaseUrl,
                                        @Value("${spring.ai.embedding.api-key:${spring.ai.openai.api-key}}") String embeddingApiKey,
                                        @Value("${spring.ai.embedding.model:}") String embeddingModel,
+                                       @Value("${spring.ai.embedding.dimensions:0}") int embeddingDimensions,
                                        @Value("${app.legal.knowledge.vector-table:"
                                                + LegalKnowledgeMetadata.DEFAULT_VECTOR_TABLE + "}") String vectorTable,
                                        @Qualifier("mysqlDataSource") DataSource mysqlDataSource,
@@ -54,20 +55,27 @@ public class AiAgentConfig {
                 .restClientBuilder(openAiRestClientBuilder())
                 .build();
 
-        OpenAiEmbeddingModel openAiEmbeddingModel;
-        if (!notBlank(model)) {
-            openAiEmbeddingModel = new OpenAiEmbeddingModel(openAiApi);
-        } else {
-            openAiEmbeddingModel = new OpenAiEmbeddingModel(
-                    openAiApi,
-                    MetadataMode.EMBED,
-                    OpenAiEmbeddingOptions.builder().model(model.trim()).build()
-            );
-        }
+        OpenAiEmbeddingModel openAiEmbeddingModel = new OpenAiEmbeddingModel(
+                openAiApi, MetadataMode.EMBED, embeddingOptions(model, embeddingDimensions));
 
-        return PgVectorStore.builder(jdbcTemplate, openAiEmbeddingModel)
-                .vectorTableName(validateVectorTableName(vectorTable))
-                .build();
+        var vectorStoreBuilder = PgVectorStore.builder(jdbcTemplate, openAiEmbeddingModel)
+                .vectorTableName(validateVectorTableName(vectorTable));
+        if (embeddingDimensions > 0) {
+            vectorStoreBuilder.dimensions(embeddingDimensions);
+        }
+        return vectorStoreBuilder.build();
+    }
+
+    OpenAiEmbeddingOptions embeddingOptions(String model, int dimensions) {
+        if (dimensions < 0) {
+            throw new IllegalArgumentException("spring.ai.embedding.dimensions must be zero or positive");
+        }
+        var optionsBuilder = OpenAiEmbeddingOptions.builder()
+                .model(notBlank(model) ? model.trim() : OpenAiApi.DEFAULT_EMBEDDING_MODEL);
+        if (dimensions > 0) {
+            optionsBuilder.dimensions(dimensions);
+        }
+        return optionsBuilder.build();
     }
 
     private EmbeddingConfig loadEmbeddingConfig(DataSource mysqlDataSource) {

@@ -3,6 +3,9 @@ spring:
     name: ddd-agent-sheep-app
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:offline}
+  ai:
+    embedding:
+      dimensions: ${AI_EMBEDDING_DIMENSIONS:0}
 
 app:
   infrastructure:
