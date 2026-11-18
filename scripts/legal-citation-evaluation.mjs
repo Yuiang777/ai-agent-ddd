@@ -12,7 +12,7 @@ function ratio(numerator, denominator) {
   return denominator === 0 ? null : numerator / denominator
 }
 
-export function evaluate(records) {
+export function evaluate(records, frozenQuestions) {
   required(Array.isArray(records) && records.length > 0, '标注记录不能为空')
   const seen = new Set()
   const answerability = new Map()
@@ -69,6 +69,27 @@ export function evaluate(records) {
       required(!record.refused || !claim.displayed, claimAt + '已拒答却对外展示主张')
     }
   }
+  if (frozenQuestions !== undefined) {
+    required(Array.isArray(frozenQuestions) && frozenQuestions.length > 0, '冻结题目清单不能为空')
+    const frozenDates = new Map()
+    for (const question of frozenQuestions) {
+      required(question && typeof question === 'object' && !Array.isArray(question)
+        && typeof question.questionId === 'string' && question.questionId.trim()
+        && question.questionId.trim() === question.questionId && !/[\r\n]/.test(question.questionId),
+      '冻结题目清单的问题 ID 无效')
+      required(typeof question.lawAsOf === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(question.lawAsOf)
+        && !Number.isNaN(Date.parse(question.lawAsOf))
+        && new Date(question.lawAsOf).toISOString().slice(0, 10) === question.lawAsOf,
+      '冻结题目清单的法律适用日期无效')
+      required(!frozenDates.has(question.questionId), '冻结题目清单的问题 ID 重复')
+      frozenDates.set(question.questionId, question.lawAsOf)
+    }
+    required(frozenDates.size === legalDates.size
+      && [...frozenDates.keys()].every(questionId => legalDates.has(questionId)),
+    '标注记录必须完整覆盖冻结题目清单，不能漏题或增加题目')
+    required([...frozenDates].every(([questionId, date]) => legalDates.get(questionId) === date),
+      '标注记录与冻结题目清单的法律适用日期不一致')
+  }
   const rounds = new Map()
   for (const record of records.filter(item => item.group === 'direct')) {
     if (!rounds.has(record.questionId)) rounds.set(record.questionId, new Set())
@@ -107,6 +128,7 @@ export function evaluate(records) {
     return {
       group, modelVersion, promptVersion: promptVersions.get(group), corpusSnapshotId,
       questions: rounds.size, runsPerQuestion: counts[0],
+      frozenQuestionCoverageChecked: frozenQuestions !== undefined,
       runs: items.length, claims: claims.length, unjudgedClaims: claims.length - judged.length,
       metricCounts,
       locatedRate: ratio(metricCounts.locatedClaims, metricCounts.generatedClaims),
@@ -144,11 +166,12 @@ const entry = process.argv[1] ? pathToFileURL(process.argv[1]).href : ''
 if (import.meta.url === entry) {
   const file = process.argv[2]
   if (!file) {
-    console.error('用法: node scripts/legal-citation-evaluation.mjs <标注记录.jsonl>')
+    console.error('用法: node scripts/legal-citation-evaluation.mjs <标注记录.jsonl> [冻结题目清单.jsonl]')
     process.exitCode = 2
   } else {
     try {
-      console.log(JSON.stringify(evaluate(await readJsonl(file)), null, 2))
+      const frozenQuestions = process.argv[3] ? await readJsonl(process.argv[3]) : undefined
+      console.log(JSON.stringify(evaluate(await readJsonl(file), frozenQuestions), null, 2))
     } catch (error) {
       console.error(error.message)
       process.exitCode = 1

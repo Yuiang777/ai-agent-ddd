@@ -123,11 +123,14 @@ public class LegalHybridRetrievalService {
         if (query == null || query.isBlank()) {
             throw new IllegalArgumentException("legal retrieval query must not be blank");
         }
-        List<LegalRetrievalResult> scopedResults = new ArrayList<>();
         for (LegalRetrievalRequest request : requests) {
             if (request == null || !query.equals(request.query())) {
                 throw new IllegalArgumentException("federated legal retrieval scopes must use the same query");
             }
+            request.metadataFilters();
+        }
+        List<LegalRetrievalResult> scopedResults = new ArrayList<>();
+        for (LegalRetrievalRequest request : requests) {
             scopedResults.add(retrieveWithDiagnostics(request));
         }
         if (scopedResults.size() == 1) {

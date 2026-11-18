@@ -55,8 +55,8 @@ export default function KnowledgeBase() {
     {capability && <Alert severity={capability.enabled ? 'info' : 'warning'}>{capability.reason}{capability.enabled && ` 单文件上限 ${(capability.maxFileBytes / 1024 / 1024).toFixed(1)} MB。`}</Alert>}
     {file && <Alert severity="info" action={<Button size="small" disabled={busy || !capability?.enabled} onClick={upload}>{busy ? '上传中…' : '确认上传'}</Button>}>已选择：{file.name}。上传成功后仅登记为已存储，不代表已完成解析或检索入库。</Alert>}
     {error && <Alert severity="warning">{error}。填写和文件选择仍保留；请核对服务状态后重试。</Alert>}
-    <Alert severity="info">文档目录查询接口尚未提供。下方仅显示当前页面上传成功的文件；统计来自服务端入库统计，当前尚未提供认证租户专属口径。</Alert>
-    <Grid container spacing={1.5}>{[['入库统计文档数', stats?.totalDocuments], ['已摄取文档', stats?.successDocuments], ['文档分片', stats?.totalChunks], ['解析失败', stats?.failedDocuments]].map(([name, value]) => <Grid item xs={6} md={3} key={name}><SectionCard><Typography variant="body2" color="text.secondary">{name}</Typography><Typography variant="h5" sx={{ mt: 0.5, fontWeight: 800 }}>{value ?? '—'}</Typography></SectionCard></Grid>)}</Grid>
+    <Alert severity="info">文档目录查询接口尚未提供。下方仅显示当前页面上传成功的文件；统计仅反映服务端暂存目录的文档解析，不代表已完成向量入库或可以检索，当前尚未提供认证租户专属口径。</Alert>
+    <Grid container spacing={1.5}>{[['暂存目录文档数', stats?.totalDocuments], ['解析成功', stats?.successDocuments], ['解析分片', stats?.totalChunks], ['解析失败', stats?.failedDocuments]].map(([name, value]) => <Grid item xs={6} md={3} key={name}><SectionCard><Typography variant="body2" color="text.secondary">{name}</Typography><Typography variant="h5" sx={{ mt: 0.5, fontWeight: 800 }}>{value ?? '—'}</Typography></SectionCard></Grid>)}</Grid>
     <SectionCard title="本次上传记录" description="离开页面后此列表不保留；刷新状态不会清除本页记录。正式记录以服务端目录为准。"><DataTable rows={rows} rowKey={row => row.id} columns={[{ key: 'name', label: '文档名称', maxWidth: 320 }, { key: 'category', label: '分类' }, { key: 'status', label: '存储状态' }, { key: 'updated', label: '提交时间', render: formatTime }, { key: 'access', label: '访问范围' }]} /></SectionCard>
   </PageShell>
 }

@@ -259,6 +259,43 @@ public class LegalHybridRetrievalServiceTest {
     }
 
     @Test
+    public void shouldValidateAllFederatedScopesBeforeSearchingAnySource() {
+        List<String> calls = new ArrayList<>();
+        ILegalEvidenceRepository repository = new ILegalEvidenceRepository() {
+            @Override
+            public List<LegalEvidence> vectorSearch(LegalRetrievalRequest request) {
+                calls.add("vector");
+                return List.of();
+            }
+
+            @Override
+            public List<LegalEvidence> keywordSearch(LegalRetrievalRequest request) {
+                calls.add("keyword");
+                return List.of();
+            }
+        };
+        LegalHybridRetrievalService service = service(repository);
+        LegalRetrievalRequest primary = new LegalRetrievalRequest(
+                "合同履行证据", null, 6, 12, 18);
+        List<LegalRetrievalRequest> invalidScopes = new ArrayList<>();
+        invalidScopes.add(null);
+        invalidScopes.add(new LegalRetrievalRequest("不同的问题", null, 6, 12, 18));
+        invalidScopes.add(new LegalRetrievalRequest(
+                primary.query(), null, 6, 12, 18, route, "law-consultant",
+                "tenant-001", LegalCorpusType.MATTER_PRIVATE, "matter-009"));
+        invalidScopes.add(new LegalRetrievalRequest(
+                primary.query(), "acl_subject_id == 'other-actor'", 6, 12, 18, route,
+                "law-consultant", "tenant-001", LegalCorpusType.MATTER_PRIVATE, "matter-009", "lawyer-7"));
+
+        for (LegalRetrievalRequest invalidScope : invalidScopes) {
+            calls.clear();
+            assertThrows(IllegalArgumentException.class,
+                    () -> service.retrieveFederated(java.util.Arrays.asList(primary, invalidScope)));
+            assertTrue("invalid federation must not contact either retrieval source", calls.isEmpty());
+        }
+    }
+
+    @Test
     public void shouldFederatePublicAndActorScopedMatterEvidence() {
         List<LegalRetrievalRequest> seen = new ArrayList<>();
         ILegalEvidenceRepository repository = new ILegalEvidenceRepository() {
