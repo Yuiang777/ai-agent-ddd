@@ -1,0 +1,229 @@
+{
+  "schemaVersion": 1,
+  "kind": "local-index-smoke",
+  "checkedAt": "2026-11-18T07:40:46.234Z",
+  "scope": "Local embedding endpoint plus filtered PostgreSQL cosine search; not application hybrid retrieval, answer generation, citation verification or an independent evaluation.",
+  "currentLawVersionsVerified": false,
+  "sourceManifest": "docs/thesis/official-law-sources.json",
+  "sourceManifestSha256Lf": "85586c86cb54b80ceb18a43349b6a3fbeec24708250b43a6b3d185363be8d14a",
+  "model": {
+    "name": "qwen3-embedding:4b",
+    "server": "Ollama",
+    "serverVersion": "0.24.0",
+    "requestedDimensions": 1536
+  },
+  "ingestion": {
+    "endpoint": "POST /api/legal/documents/ingest",
+    "firstAttempt": {
+      "httpTimeoutSeconds": 600,
+      "stagingRowsAfterStop": 157,
+      "activeRowsAfterStop": 0
+    },
+    "successfulAttempt": {
+      "batchSize": 32,
+      "httpTimeoutSeconds": 2300,
+      "reportedCostMs": 1267178,
+      "generatedAtLocal": "2026-11-18T15:38:36.9508257",
+      "timezone": "Asia/Shanghai",
+      "totalDocuments": 3,
+      "successDocuments": 3,
+      "failedDocuments": 0,
+      "totalChunks": 372
+    }
+  },
+  "database": {
+    "vectorRows": 372,
+    "activeRows": 372,
+    "stagingRows": 0,
+    "dimensions": [
+      1536
+    ],
+    "activeCatalogVersions": 3
+  },
+  "queryProtocol": {
+    "topK": 5,
+    "filters": {
+      "knowledge": "law-consultant",
+      "ingestion_status": "active",
+      "corpus_type": "public_law"
+    },
+    "ranking": "pgvector cosine distance",
+    "querySet": "Three developer-written synthetic public-law smoke prompts, not a held-out evaluation set"
+  },
+  "queries": [
+    {
+      "id": "pipl-smoke",
+      "query": "个人信息处理者处理个人信息时，取得个人同意有哪些要求？",
+      "expectedDocId": "afb40293a4af40e6a63effbf6b76042a",
+      "expectedLawPresent": true,
+      "hits": [
+        {
+          "chunkId": "fc5588bf-c4bb-39b1-b443-288c9df3593a",
+          "docId": "afb40293a4af40e6a63effbf6b76042a",
+          "lawName": "中华人民共和国个人信息保护法_20210820",
+          "articleNo": "第十三条",
+          "normalizedSourceChecksum": "04527716991a94f679672c713b080b98b7692bb59ec6001ce4ff95e0c2ed3668",
+          "documentVersion": "bca5eb70ab02b21601fd1f169ee6b50a",
+          "originalObjectSha256": "22cd01cec50aceae7d14a3b6d8833891e10907082616f8d7aeaa38c13303cbed",
+          "activeCatalogVersionMatched": true
+        },
+        {
+          "chunkId": "e7cd0b2a-48bb-3f8d-b3a7-4fec509a79d3",
+          "docId": "afb40293a4af40e6a63effbf6b76042a",
+          "lawName": "中华人民共和国个人信息保护法_20210820",
+          "articleNo": "第十四条",
+          "normalizedSourceChecksum": "04527716991a94f679672c713b080b98b7692bb59ec6001ce4ff95e0c2ed3668",
+          "documentVersion": "bca5eb70ab02b21601fd1f169ee6b50a",
+          "originalObjectSha256": "22cd01cec50aceae7d14a3b6d8833891e10907082616f8d7aeaa38c13303cbed",
+          "activeCatalogVersionMatched": true
+        },
+        {
+          "chunkId": "1d506048-bb9b-3d18-95df-e1b59ce5c99f",
+          "docId": "afb40293a4af40e6a63effbf6b76042a",
+          "lawName": "中华人民共和国个人信息保护法_20210820",
+          "articleNo": "第十三条",
+          "normalizedSourceChecksum": "04527716991a94f679672c713b080b98b7692bb59ec6001ce4ff95e0c2ed3668",
+          "documentVersion": "bca5eb70ab02b21601fd1f169ee6b50a",
+          "originalObjectSha256": "22cd01cec50aceae7d14a3b6d8833891e10907082616f8d7aeaa38c13303cbed",
+          "activeCatalogVersionMatched": true
+        },
+        {
+          "chunkId": "22055f47-d346-3616-9c10-d48648390a56",
+          "docId": "afb40293a4af40e6a63effbf6b76042a",
+          "lawName": "中华人民共和国个人信息保护法_20210820",
+          "articleNo": "第十四条",
+          "normalizedSourceChecksum": "04527716991a94f679672c713b080b98b7692bb59ec6001ce4ff95e0c2ed3668",
+          "documentVersion": "bca5eb70ab02b21601fd1f169ee6b50a",
+          "originalObjectSha256": "22cd01cec50aceae7d14a3b6d8833891e10907082616f8d7aeaa38c13303cbed",
+          "activeCatalogVersionMatched": true
+        },
+        {
+          "chunkId": "891a0661-52da-3b7d-a578-2fecfb6509fc",
+          "docId": "afb40293a4af40e6a63effbf6b76042a",
+          "lawName": "中华人民共和国个人信息保护法_20210820",
+          "articleNo": "第十三条",
+          "normalizedSourceChecksum": "04527716991a94f679672c713b080b98b7692bb59ec6001ce4ff95e0c2ed3668",
+          "documentVersion": "bca5eb70ab02b21601fd1f169ee6b50a",
+          "originalObjectSha256": "22cd01cec50aceae7d14a3b6d8833891e10907082616f8d7aeaa38c13303cbed",
+          "activeCatalogVersionMatched": true
+        }
+      ]
+    },
+    {
+      "id": "aid-smoke",
+      "query": "因经济困难申请法律援助，需要提交哪些材料和说明？",
+      "expectedDocId": "6104db51be8e4d5ba372cd56256c7f47",
+      "expectedLawPresent": true,
+      "hits": [
+        {
+          "chunkId": "21da942e-b084-30f8-bdee-dd7969abc28e",
+          "docId": "6104db51be8e4d5ba372cd56256c7f47",
+          "lawName": "中华人民共和国法律援助法_20210820",
+          "articleNo": "第四十一条",
+          "normalizedSourceChecksum": "7a7b08f9027f4582c4ba6aa1481ffa0f48a09ff644edf49205aa794b279e9a7c",
+          "documentVersion": "ff94a3a4e900146661341e1bdfbbd7cd",
+          "originalObjectSha256": "1293d6d8b749b719a0d93fbe413c82fb5f6dfe496f16d81d725f7559892a476c",
+          "activeCatalogVersionMatched": true
+        },
+        {
+          "chunkId": "b4804cac-6a33-3deb-a539-43d3febb5eee",
+          "docId": "6104db51be8e4d5ba372cd56256c7f47",
+          "lawName": "中华人民共和国法律援助法_20210820",
+          "articleNo": "第四十二条",
+          "normalizedSourceChecksum": "7a7b08f9027f4582c4ba6aa1481ffa0f48a09ff644edf49205aa794b279e9a7c",
+          "documentVersion": "ff94a3a4e900146661341e1bdfbbd7cd",
+          "originalObjectSha256": "1293d6d8b749b719a0d93fbe413c82fb5f6dfe496f16d81d725f7559892a476c",
+          "activeCatalogVersionMatched": true
+        },
+        {
+          "chunkId": "0589d381-c268-3474-be50-bfff882ac5a4",
+          "docId": "6104db51be8e4d5ba372cd56256c7f47",
+          "lawName": "中华人民共和国法律援助法_20210820",
+          "articleNo": "第四十二条",
+          "normalizedSourceChecksum": "7a7b08f9027f4582c4ba6aa1481ffa0f48a09ff644edf49205aa794b279e9a7c",
+          "documentVersion": "ff94a3a4e900146661341e1bdfbbd7cd",
+          "originalObjectSha256": "1293d6d8b749b719a0d93fbe413c82fb5f6dfe496f16d81d725f7559892a476c",
+          "activeCatalogVersionMatched": true
+        },
+        {
+          "chunkId": "d1fbe594-39be-3710-9509-4de2f7ef372e",
+          "docId": "6104db51be8e4d5ba372cd56256c7f47",
+          "lawName": "中华人民共和国法律援助法_20210820",
+          "articleNo": "第三十一条",
+          "normalizedSourceChecksum": "7a7b08f9027f4582c4ba6aa1481ffa0f48a09ff644edf49205aa794b279e9a7c",
+          "documentVersion": "ff94a3a4e900146661341e1bdfbbd7cd",
+          "originalObjectSha256": "1293d6d8b749b719a0d93fbe413c82fb5f6dfe496f16d81d725f7559892a476c",
+          "activeCatalogVersionMatched": true
+        },
+        {
+          "chunkId": "b876f071-a0e5-3600-bc1f-bcca888a2819",
+          "docId": "6104db51be8e4d5ba372cd56256c7f47",
+          "lawName": "中华人民共和国法律援助法_20210820",
+          "articleNo": "第四十二条",
+          "normalizedSourceChecksum": "7a7b08f9027f4582c4ba6aa1481ffa0f48a09ff644edf49205aa794b279e9a7c",
+          "documentVersion": "ff94a3a4e900146661341e1bdfbbd7cd",
+          "originalObjectSha256": "1293d6d8b749b719a0d93fbe413c82fb5f6dfe496f16d81d725f7559892a476c",
+          "activeCatalogVersionMatched": true
+        }
+      ]
+    },
+    {
+      "id": "data-smoke",
+      "query": "开展数据处理活动，应当怎样建立数据安全管理制度并开展教育培训？",
+      "expectedDocId": "99dcbcd5d7a44cd28abdf493f2787608",
+      "expectedLawPresent": true,
+      "hits": [
+        {
+          "chunkId": "5a998e50-96d1-3899-a431-d0302154d45f",
+          "docId": "99dcbcd5d7a44cd28abdf493f2787608",
+          "lawName": "中华人民共和国数据安全法_20210610",
+          "articleNo": "第二十七条",
+          "normalizedSourceChecksum": "7b5bc142ed5303bbfc46f8377a8b06e2c3924bc110061f9a80d04e88ad81a1f2",
+          "documentVersion": "5c3e72c97334b0b6a420f8286ac58ee8",
+          "originalObjectSha256": "2829272c90581621df2b7e36b7107d5d44dc7dcf6eec60e5fe5c020413841199",
+          "activeCatalogVersionMatched": true
+        },
+        {
+          "chunkId": "503ef6c3-9b13-383c-895f-ec82d3bfff9b",
+          "docId": "99dcbcd5d7a44cd28abdf493f2787608",
+          "lawName": "中华人民共和国数据安全法_20210610",
+          "articleNo": "第二十条",
+          "normalizedSourceChecksum": "7b5bc142ed5303bbfc46f8377a8b06e2c3924bc110061f9a80d04e88ad81a1f2",
+          "documentVersion": "5c3e72c97334b0b6a420f8286ac58ee8",
+          "originalObjectSha256": "2829272c90581621df2b7e36b7107d5d44dc7dcf6eec60e5fe5c020413841199",
+          "activeCatalogVersionMatched": true
+        },
+        {
+          "chunkId": "30778164-378b-3e10-aac3-ba259515065b",
+          "docId": "99dcbcd5d7a44cd28abdf493f2787608",
+          "lawName": "中华人民共和国数据安全法_20210610",
+          "articleNo": "第十九条",
+          "normalizedSourceChecksum": "7b5bc142ed5303bbfc46f8377a8b06e2c3924bc110061f9a80d04e88ad81a1f2",
+          "documentVersion": "5c3e72c97334b0b6a420f8286ac58ee8",
+          "originalObjectSha256": "2829272c90581621df2b7e36b7107d5d44dc7dcf6eec60e5fe5c020413841199",
+          "activeCatalogVersionMatched": true
+        },
+        {
+          "chunkId": "7e912d00-df41-342b-9d5e-74b7764d5e7a",
+          "docId": "99dcbcd5d7a44cd28abdf493f2787608",
+          "lawName": "中华人民共和国数据安全法_20210610",
+          "articleNo": "第二十九条",
+          "normalizedSourceChecksum": "7b5bc142ed5303bbfc46f8377a8b06e2c3924bc110061f9a80d04e88ad81a1f2",
+          "documentVersion": "5c3e72c97334b0b6a420f8286ac58ee8",
+          "originalObjectSha256": "2829272c90581621df2b7e36b7107d5d44dc7dcf6eec60e5fe5c020413841199",
+          "activeCatalogVersionMatched": true
+        },
+        {
+          "chunkId": "ccd72ad0-10db-3404-8f84-43641bf7f75e",
+          "docId": "99dcbcd5d7a44cd28abdf493f2787608",
+          "lawName": "中华人民共和国数据安全法_20210610",
+          "articleNo": "第二十三条",
+          "normalizedSourceChecksum": "7b5bc142ed5303bbfc46f8377a8b06e2c3924bc110061f9a80d04e88ad81a1f2",
+          "documentVersion": "5c3e72c97334b0b6a420f8286ac58ee8",
+          "originalObjectSha256": "2829272c90581621df2b7e36b7107d5d44dc7dcf6eec60e5fe5c020413841199",
+          "activeCatalogVersionMatched": true
+        }
+      ]
+    }
+  ]
+}

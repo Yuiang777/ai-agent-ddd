@@ -1,6 +1,7 @@
 package cn.apple.test.domain;
 
 import cn.apple.domain.legal.model.valobj.LegalKnowledgeMetadata;
+import cn.apple.domain.legal.model.valobj.LegalCorpusType;
 import cn.apple.domain.legal.model.valobj.LegalRetrievalRequest;
 import cn.apple.domain.legal.model.valobj.LegalScopeRoute;
 import cn.apple.infrastructure.legal.LegalEvidenceRepository;
@@ -9,6 +10,7 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.Filter;
+import org.springframework.ai.vectorstore.filter.FilterExpressionTextParser;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 
@@ -16,7 +18,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 public class LegalEvidenceRepositoryTest {
@@ -80,6 +85,83 @@ public class LegalEvidenceRepositoryTest {
         assertTrue(expression.contains(LegalKnowledgeMetadata.TENANT_ID));
         assertTrue(expression.contains(LegalKnowledgeMetadata.INGESTION_STATUS));
         assertTrue(expression.contains("status"));
+    }
+
+    @Test
+    public void shouldRestrictDefaultSearchesToActivePublicLaw() {
+        RecordingVectorStore vectorStore = new RecordingVectorStore();
+        RecordingJdbcTemplate jdbcTemplate = new RecordingJdbcTemplate();
+        LegalEvidenceRepository repository = new LegalEvidenceRepository(
+                vectorStore, jdbcTemplate, "vector_store_openai");
+        LegalRetrievalRequest request = new LegalRetrievalRequest(
+                "个人信息保护", null, 6, 12, 18);
+
+        repository.vectorSearch(request);
+        repository.keywordSearch(request);
+
+        assertEquals(new FilterExpressionTextParser().parse(
+                "knowledge == 'law-consultant' && ingestion_status == 'active' && corpus_type == 'public_law'"),
+                vectorStore.request.getFilterExpression());
+        assertTrue(jdbcTemplate.sql.contains("and metadata ->> 'knowledge' = ?"));
+        assertTrue(jdbcTemplate.sql.contains("and metadata ->> 'ingestion_status' = ?"));
+        assertTrue(jdbcTemplate.sql.contains("and metadata ->> 'corpus_type' = ?"));
+        int filterStart = jdbcTemplate.parameters.indexOf("law-consultant");
+        assertTrue(filterStart >= 0);
+        assertEquals(List.of("law-consultant", "active", "public_law"),
+                jdbcTemplate.parameters.subList(filterStart, filterStart + 3));
+    }
+
+    @Test
+    public void shouldBindPrivateMatterAndActorIsolationInBothSearches() {
+        RecordingVectorStore vectorStore = new RecordingVectorStore();
+        RecordingJdbcTemplate jdbcTemplate = new RecordingJdbcTemplate();
+        LegalEvidenceRepository repository = new LegalEvidenceRepository(
+                vectorStore, jdbcTemplate, "vector_store_openai");
+        LegalRetrievalRequest request = new LegalRetrievalRequest(
+                "合同履行证据", null, 6, 12, 18, route, "law-consultant",
+                "tenant-001", LegalCorpusType.MATTER_PRIVATE, "matter-009", "lawyer-7");
+
+        repository.vectorSearch(request);
+        repository.keywordSearch(request);
+
+        assertEquals(new FilterExpressionTextParser().parse(
+                "knowledge == 'law-consultant' && ingestion_status == 'active' && corpus_type == 'matter_private'"
+                        + " && tenant_id == 'tenant-001' && matter_id == 'matter-009' && acl_subject_id == 'lawyer-7'"),
+                vectorStore.request.getFilterExpression());
+        assertTrue(jdbcTemplate.sql.contains("and metadata ->> 'tenant_id' = ?"));
+        assertTrue(jdbcTemplate.sql.contains("and metadata ->> 'matter_id' = ?"));
+        assertTrue(jdbcTemplate.sql.contains("and metadata ->> 'acl_subject_id' = ?"));
+        assertFalse(jdbcTemplate.sql.contains("tenant-001"));
+        assertFalse(jdbcTemplate.sql.contains("matter-009"));
+        assertFalse(jdbcTemplate.sql.contains("lawyer-7"));
+        int filterStart = jdbcTemplate.parameters.indexOf("law-consultant");
+        assertTrue(filterStart >= 0);
+        assertEquals(List.of("law-consultant", "active", "matter_private",
+                        "tenant-001", "matter-009", "lawyer-7"),
+                jdbcTemplate.parameters.subList(filterStart, filterStart + 6));
+    }
+
+    @Test
+    public void shouldRejectScopeOverridesBeforeEitherRepositoryCall() {
+        for (String filter : List.of(
+                "ingestion_status == 'staging'",
+                "corpus_type == 'public_law'",
+                "tenant_id == 'other-tenant'",
+                "matter_id == 'other-matter'",
+                "acl_subject_id == 'other-actor'")) {
+            RecordingVectorStore vectorStore = new RecordingVectorStore();
+            RecordingJdbcTemplate jdbcTemplate = new RecordingJdbcTemplate();
+            LegalEvidenceRepository repository = new LegalEvidenceRepository(
+                    vectorStore, jdbcTemplate, "vector_store_openai");
+            LegalRetrievalRequest request = new LegalRetrievalRequest(
+                    "合同履行证据", filter, 6, 12, 18, route, "law-consultant",
+                    "tenant-001", LegalCorpusType.MATTER_PRIVATE, "matter-009", "lawyer-7");
+
+            assertThrows(IllegalArgumentException.class, () -> repository.vectorSearch(request));
+            assertThrows(IllegalArgumentException.class, () -> repository.keywordSearch(request));
+            assertNull(vectorStore.request);
+            assertEquals("", jdbcTemplate.sql);
+        }
     }
 
     private static final class RecordingJdbcTemplate extends JdbcTemplate {
