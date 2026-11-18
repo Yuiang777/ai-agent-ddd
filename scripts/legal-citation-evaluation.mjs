@@ -123,7 +123,10 @@ export function evaluate(records) {
 }
 
 export async function readJsonl(file) {
-  const bytes = await fs.readFile(file)
+  return parseJsonl(await fs.readFile(file))
+}
+
+export function parseJsonl(bytes) {
   let text
   try {
     text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes)

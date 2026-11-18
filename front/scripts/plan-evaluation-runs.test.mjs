@@ -5,7 +5,19 @@ import os from 'node:os'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { createHash } from 'node:crypto'
 import { planRuns } from '../../scripts/plan-evaluation-runs.mjs'
+
+test('planned questions and manifest hash use the same single-read snapshot', async context => {
+  const initial = Buffer.from(JSON.stringify({ questionId: 'initial', lawAsOf: '2026-01-01' }))
+  const changed = Buffer.from(JSON.stringify({ questionId: 'changed', lawAsOf: '2026-02-01' }))
+  let reads = 0
+  context.mock.method(fs, 'readFile', async () => ++reads === 1 ? initial : changed)
+  const plan = await planRuns('changing-manifest.jsonl', 1, 'seed')
+  assert.equal(plan[0].questionId, 'initial')
+  assert.equal(plan[0].manifestSha256, createHash('sha256').update(initial).digest('hex'))
+  assert.equal(reads, 1)
+})
 
 test('pre-registers deterministic paired order without inventing answers', async () => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'legal-run-plan-'))

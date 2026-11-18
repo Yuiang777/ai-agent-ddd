@@ -39,6 +39,27 @@ try {
     }
   }
   console.log('PASS retrieval labels are localized and missing or unrecognized status stays unknown in both modes')
+  for (const mode of ['同步执行', '实时执行']) {
+    for (const [level, expected] of [['HIGH', '高风险'], ['MEDIUM', '中风险'], ['LOW', '低风险'],
+      [undefined, '等级待确认'], ['UNKNOWN', '等级待确认'], [{ invalid: true }, '等级待确认']]) {
+      const endpoint = mode === '同步执行' ? '**/api/workflows/run' : '**/api/workflows/run/stream'
+      const risks = [{ title: 'MOCK_SEVERITY_RISK', level }]
+      const data = { status: 'REVIEW_REQUIRED', finalOutput: 'MOCK_SEVERITY_REPORT', risks, riskItems: risks }
+      await page.route(endpoint, route => route.fulfill(mode === '同步执行'
+        ? { json: { success: true, data } }
+        : { contentType: 'text/event-stream', body: 'event: WORKFLOW_COMPLETED\ndata: ' + JSON.stringify({ data }) + '\n\n' }))
+      await page.getByRole('button', { name: mode, exact: true }).click()
+      await page.getByText('MOCK_SEVERITY_RISK', { exact: true }).waitFor()
+      const riskCard = page.getByText('MOCK_SEVERITY_RISK', { exact: true }).locator('..')
+      assert.equal(await riskCard.getByText(expected, { exact: true }).count(), 1)
+      if (expected === '等级待确认') {
+        assert.equal(await riskCard.getByText('中风险', { exact: true }).count(), 0)
+      }
+      assert.deepEqual(errors, [])
+      await page.unroute(endpoint)
+    }
+  }
+  console.log('PASS explicit risk levels render correctly and unknown levels stay unconfirmed in both workflow modes')
   for (const status of ['BLOCKED', 'FAILED']) {
     const publishableStatus = status === 'BLOCKED' ? 'SUCCESS' : 'REVIEW_REQUIRED'
     await page.route('**/api/workflows/run', route => route.fulfill({ json: { success: true, data: {
@@ -264,6 +285,8 @@ try {
     if (['SUCCESS', 'REVIEW_REQUIRED'].includes(status)) {
       await page.getByText('CONTRACT_REPORT_MARKER', { exact: true }).waitFor()
       await page.getByText('CONTRACT_RISK_MARKER', { exact: true }).waitFor()
+      assert.equal(await page.getByText('等级待确认', { exact: true }).count(), 1)
+      assert.equal(await page.getByText('中风险', { exact: true }).count(), 0)
       await page.getByText('来源与摘录齐全的候选引用： 1 条；法律适用仍需人工核验。', { exact: true }).waitFor()
       assert.equal(await page.getByRole('button', { name: '打印当前报告', exact: true }).isEnabled(), true)
     } else {
