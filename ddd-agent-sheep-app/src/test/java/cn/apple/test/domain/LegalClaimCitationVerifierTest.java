@@ -41,6 +41,18 @@ public class LegalClaimCitationVerifierTest {
     }
 
     @Test
+    public void rejectsPunctuationOnlyExcerptEvenWhenItOccursInSource() {
+        String punctuation = "。，！？；：、。，！？；：、";
+        LegalEvidence source = new LegalEvidence("chunk-1", "示例来源：" + punctuation, "document-1",
+                "示例文档", "", "第一条", "", 0, "/example/source", 0.9, metadata("2020-01-01"));
+        LegalClaimCitationVerifier.Verification result = verifier.verify(List.of(claim("E1", punctuation)),
+                List.of(source));
+
+        assertFalse(result.traceable());
+        assertEquals("CLAIM_OR_QUOTE_LENGTH_INVALID", result.findings().get(0).status());
+    }
+
+    @Test
     public void failsClosedOnUnknownEvidenceOrInventedQuotation() {
         LegalClaimCitationVerifier.Verification result = verifier.verify(List.of(
                 claim("E2", excerpt), claim("E1", "这是一段并不存在于来源中的法条原文")),

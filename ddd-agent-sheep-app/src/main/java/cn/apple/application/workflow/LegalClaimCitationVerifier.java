@@ -50,7 +50,8 @@ public class LegalClaimCitationVerifier {
     private String check(Claim claim, LegalEvidence evidence) {
         if (claim == null || blank(claim.text()) || blank(claim.evidenceId()) || blank(claim.quote()))
             return "CLAIM_OR_REFERENCE_MISSING";
-        if (claim.text().length() > 1200 || claim.quote().length() > 360 || normalized(claim.quote()).length() < 8)
+        if (claim.text().length() > 1200 || claim.quote().length() > 360
+                || normalized(claim.quote()).codePoints().filter(Character::isLetterOrDigit).count() < 8)
             return "CLAIM_OR_QUOTE_LENGTH_INVALID";
         if (evidence == null) return "EVIDENCE_ID_UNKNOWN";
         if (blank(evidence.id()) || blank(evidence.docId()) || blank(evidence.docName()) || blank(evidence.sourcePath()))
