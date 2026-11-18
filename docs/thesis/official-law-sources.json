@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "retrievedAt": "2026-11-18T05:28:40.366Z",
+  "scope": "Public law text extracted from official institution pages; current amended-text status requires independent confirmation before legal use.",
+  "extraction": "Retain promulgation line and paragraphs from the first actual chapter onward; omit duplicated web table of contents and navigation.",
+  "laws": [
+    {
+      "title": "中华人民共和国个人信息保护法",
+      "path": "data/legal/raw/中华人民共和国个人信息保护法_20210820.md",
+      "officialUrl": "https://www.spp.gov.cn/spp/fl/202108/t20210820_527244.shtml",
+      "publishingInstitution": "最高人民检察院",
+      "versionPassedOn": "2021-08-20",
+      "effectiveFrom": "2021-11-01",
+      "articleCount": 74,
+      "sourceHtmlSha256": "38110462d1e0244f114f7d335765ef4417406616ce9612721102a377b6df71c3",
+      "textSha256": "22cd01cec50aceae7d14a3b6d8833891e10907082616f8d7aeaa38c13303cbed",
+      "currentVersionVerified": false
+    },
+    {
+      "title": "中华人民共和国法律援助法",
+      "path": "data/legal/raw/中华人民共和国法律援助法_20210820.md",
+      "officialUrl": "https://www.spp.gov.cn/spp/fl/202108/t20210820_527243.shtml",
+      "publishingInstitution": "最高人民检察院",
+      "versionPassedOn": "2021-08-20",
+      "effectiveFrom": "2022-01-01",
+      "articleCount": 71,
+      "sourceHtmlSha256": "457f2deaf6d1b9f9337795766461501bf64b0bc59bf687eb7a73897f73d8b43b",
+      "textSha256": "1293d6d8b749b719a0d93fbe413c82fb5f6dfe496f16d81d725f7559892a476c",
+      "currentVersionVerified": false
+    },
+    {
+      "title": "中华人民共和国数据安全法",
+      "path": "data/legal/raw/中华人民共和国数据安全法_20210610.md",
+      "officialUrl": "https://www.gjbmj.gov.cn/n1/2025/1208/c409088-40619671.html",
+      "publishingInstitution": "国家保密局",
+      "versionPassedOn": "2021-06-10",
+      "effectiveFrom": "2021-09-01",
+      "articleCount": 55,
+      "sourceHtmlSha256": "fb1364129b8c4f6e0354304f63948783e319d9cb3df9231ea03eb19b213c3b9a",
+      "textSha256": "2829272c90581621df2b7e36b7107d5d44dc7dcf6eec60e5fe5c020413841199",
+      "currentVersionVerified": false
+    }
+  ]
+}
