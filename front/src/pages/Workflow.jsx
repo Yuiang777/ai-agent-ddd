@@ -13,6 +13,7 @@ import { adminHeaders } from '../api/client'
 import { readSseEvents } from '../api/sse'
 import { validateWorkflowResult, finalizedWorkflowReport, isPublishableWorkflowResult, displayableItems, displayableCitations, displayableReviewReasons } from '../api/workflowResult'
 import { summarizeWorkflowEvent } from '../api/workflowEvents'
+import { riskPresentation } from '../api/riskPresentation'
 import ReportRegistration from '../components/matters/ReportRegistration'
 
 function nowId() {
@@ -599,7 +600,7 @@ export default function Workflow() {
                 {risks.length ? risks.map((risk, index) => (
                   <Box key={`${risk.title}-${index}`} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1.5 }}>
                     <Stack direction="row" spacing={1} alignItems="center">
-                      <Chip size="small" label={risk.level === 'HIGH' ? '高风险' : risk.level === 'LOW' ? '低风险' : '中风险'} color={risk.level === 'HIGH' ? 'error' : risk.level === 'LOW' ? 'success' : 'warning'} />
+                      <Chip size="small" label={riskPresentation(risk.level).label} color={riskPresentation(risk.level).color} />
                       <Typography variant="subtitle2">{risk.title}</Typography>
                     </Stack>
                     <Typography variant="body2" sx={{ mt: 1 }}>{risk.description}</Typography>
