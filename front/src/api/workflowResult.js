@@ -17,6 +17,8 @@ export function finalizedWorkflowReport(result) {
 
 export function isPublishableWorkflowResult(result) {
   return ['SUCCESS', 'REVIEW_REQUIRED'].includes(result?.status)
+    && typeof result.finalOutput === 'string'
+    && Boolean(result.finalOutput.trim())
 }
 
 export function displayableItems(items, fields) {
