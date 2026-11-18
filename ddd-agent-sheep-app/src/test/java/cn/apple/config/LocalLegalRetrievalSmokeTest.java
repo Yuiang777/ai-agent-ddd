@@ -1,5 +1,6 @@
 package cn.apple.config;
 
+import cn.apple.application.workflow.LegalClaimCitationVerifier;
 import cn.apple.domain.legal.model.valobj.LegalKnowledgeMetadata;
 import cn.apple.domain.legal.model.valobj.LegalRetrievalRequest;
 import cn.apple.domain.legal.service.LegalEvidenceContextAssembler;
@@ -13,6 +14,8 @@ import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.ai.vectorstore.pgvector.PgVectorStore;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
+
+import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -67,5 +70,27 @@ public class LocalLegalRetrievalSmokeTest {
             assertNotNull(evidence.metadata().get(LegalKnowledgeMetadata.DOCUMENT_VERSION));
             assertNotNull(evidence.metadata().get(LegalKnowledgeMetadata.SOURCE_CHECKSUM));
         }
+
+        var firstEvidence = result.evidences().get(0);
+        String excerpt = firstEvidence.text().substring(0, Math.min(80, firstEvidence.text().length()));
+        LegalClaimCitationVerifier verifier = new LegalClaimCitationVerifier();
+        var matched = verifier.verify(List.of(new LegalClaimCitationVerifier.Claim(
+                "合成核验正例，仅检查检索摘录与来源关联", "E1", excerpt)), result.evidences());
+        assertTrue("retrieved original quotation must retain verifiable source metadata", matched.traceable());
+        assertEquals("SOURCE_MATCHED", matched.findings().get(0).status());
+        assertEquals(firstEvidence.docId(), matched.findings().get(0).documentId());
+
+        String inventedExcerpt = excerpt + "这是仅用于负例测试的伪造追加文字，不是法规原文";
+        assertFalse(firstEvidence.text().replaceAll("(?U)\\s+", "")
+                .contains(inventedExcerpt.replaceAll("(?U)\\s+", "")));
+        var rejectedQuote = verifier.verify(List.of(new LegalClaimCitationVerifier.Claim(
+                "合成错误摘录负例", "E1", inventedExcerpt)), result.evidences());
+        assertFalse(rejectedQuote.traceable());
+        assertEquals("QUOTE_NOT_IN_SOURCE", rejectedQuote.findings().get(0).status());
+
+        var rejectedReference = verifier.verify(List.of(new LegalClaimCitationVerifier.Claim(
+                "合成未知证据编号负例", "E" + (result.evidences().size() + 1), excerpt)), result.evidences());
+        assertFalse(rejectedReference.traceable());
+        assertEquals("EVIDENCE_ID_UNKNOWN", rejectedReference.findings().get(0).status());
     }
 }

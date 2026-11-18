@@ -25,12 +25,13 @@ public class LegalClaimCitationVerifier {
         if (claims == null || claims.isEmpty() || claims.size() > 20) {
             return new Verification(false, List.of(), List.of("法律主张缺失或超出核验上限"));
         }
+        LocalDate verificationDate = LocalDate.now(clock);
         List<Finding> findings = new ArrayList<>();
         List<String> reasons = new ArrayList<>();
         for (int index = 0; index < claims.size(); index++) {
             Claim claim = claims.get(index);
             LegalEvidence evidence = evidenceFor(claim, evidences);
-            String status = check(claim, evidence);
+            String status = check(claim, evidence, verificationDate);
             findings.add(new Finding(index + 1, claim, evidence == null ? "" : evidence.docId(), status));
             if (!"SOURCE_MATCHED".equals(status)) {
                 reasons.add("第" + (index + 1) + "条主张引用核验失败：" + status);
@@ -47,7 +48,7 @@ public class LegalClaimCitationVerifier {
         return null;
     }
 
-    private String check(Claim claim, LegalEvidence evidence) {
+    private String check(Claim claim, LegalEvidence evidence, LocalDate verificationDate) {
         if (claim == null || blank(claim.text()) || blank(claim.evidenceId()) || blank(claim.quote()))
             return "CLAIM_OR_REFERENCE_MISSING";
         if (claim.text().length() > 1200 || claim.quote().length() > 360
@@ -63,7 +64,7 @@ public class LegalClaimCitationVerifier {
         String effectiveDate = value(metadata.get(LegalKnowledgeMetadata.EFFECTIVE_DATE));
         if (!effectiveDate.isBlank()) {
             try {
-                if (LocalDate.parse(effectiveDate).isAfter(LocalDate.now(clock))) return "SOURCE_NOT_YET_EFFECTIVE";
+                if (LocalDate.parse(effectiveDate).isAfter(verificationDate)) return "SOURCE_NOT_YET_EFFECTIVE";
             } catch (DateTimeParseException exception) {
                 return "SOURCE_EFFECTIVE_DATE_INVALID";
             }

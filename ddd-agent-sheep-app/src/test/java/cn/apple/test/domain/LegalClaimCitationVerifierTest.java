@@ -7,9 +7,11 @@ import org.junit.Test;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -79,6 +81,38 @@ public class LegalClaimCitationVerifierTest {
                 Clock.fixed(Instant.parse("2024-01-01T00:00:00Z"), ZoneOffset.UTC));
         assertEquals("SOURCE_NOT_YET_EFFECTIVE", fixedVerifier.verify(List.of(claim("E1", excerpt)),
                 List.of(evidence(metadata("2024-01-02")))).findings().get(0).status());
+    }
+
+    @Test
+    public void usesOneDateSnapshotForEveryClaimInAVerification() {
+        AtomicInteger clockReads = new AtomicInteger();
+        Clock advancingClock = new Clock() {
+            @Override
+            public ZoneId getZone() {
+                return ZoneOffset.UTC;
+            }
+
+            @Override
+            public Clock withZone(ZoneId zone) {
+                return Clock.fixed(Instant.parse("2024-01-01T23:59:59Z"), zone);
+            }
+
+            @Override
+            public Instant instant() {
+                return clockReads.getAndIncrement() == 0
+                        ? Instant.parse("2024-01-01T23:59:59Z")
+                        : Instant.parse("2024-01-02T00:00:01Z");
+            }
+        };
+        LegalClaimCitationVerifier batchVerifier = new LegalClaimCitationVerifier(advancingClock);
+
+        var result = batchVerifier.verify(List.of(claim("E1", excerpt), claim("E1", excerpt)),
+                List.of(evidence(metadata("2024-01-02"))));
+
+        assertFalse(result.traceable());
+        assertEquals(List.of("SOURCE_NOT_YET_EFFECTIVE", "SOURCE_NOT_YET_EFFECTIVE"),
+                result.findings().stream().map(LegalClaimCitationVerifier.Finding::status).toList());
+        assertEquals(1, clockReads.get());
     }
 
     @Test
