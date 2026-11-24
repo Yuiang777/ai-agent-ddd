@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
-import { parseJsonl } from './legal-citation-evaluation.mjs'
+import { parseJsonl, validateFrozenQuestions } from './legal-citation-evaluation.mjs'
 
 const groups = ['direct', 'rag', 'verified']
 const hash = value => createHash('sha256').update(value).digest('hex')
@@ -13,23 +13,7 @@ export async function planRuns(file, rounds, seed) {
   }
   const manifestBytes = await fs.readFile(file)
   const questions = parseJsonl(manifestBytes)
-  if (!questions.length) throw new Error('题目清单不能为空')
-  const seen = new Set()
-  for (const [index, question] of questions.entries()) {
-    const at = `第 ${index + 1} 道题`
-    if (!question || typeof question !== 'object' || Array.isArray(question) ||
-        typeof question.questionId !== 'string' || !question.questionId.trim() ||
-        question.questionId.trim() !== question.questionId || /[\r\n]/.test(question.questionId)) {
-      throw new Error(at + '缺少有效 questionId')
-    }
-    const date = question.lawAsOf
-    if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
-        Number.isNaN(Date.parse(date)) || new Date(date).toISOString().slice(0, 10) !== date) {
-      throw new Error(at + '缺少有效 lawAsOf')
-    }
-    if (seen.has(question.questionId)) throw new Error(at + '问题 ID 重复')
-    seen.add(question.questionId)
-  }
+  validateFrozenQuestions(questions)
   const manifestSha256 = hash(manifestBytes)
   return questions.flatMap(({ questionId, lawAsOf }) =>
     Array.from({ length: rounds }, (_, index) => {
@@ -46,7 +30,7 @@ export async function planRuns(file, rounds, seed) {
 const entry = process.argv[1] ? pathToFileURL(process.argv[1]).href : ''
 if (import.meta.url === entry) {
   const [, , file, rounds, seed] = process.argv
-  if (!file || !rounds || !seed) {
+  if (process.argv.length !== 5 || !file || !rounds || !seed) {
     console.error('用法: node scripts/plan-evaluation-runs.mjs <题目清单.jsonl> <轮次数> <随机种子>')
     process.exitCode = 2
   } else {

@@ -12,6 +12,24 @@ function ratio(numerator, denominator) {
   return denominator === 0 ? null : numerator / denominator
 }
 
+export function validateFrozenQuestions(questions) {
+  required(Array.isArray(questions) && questions.length > 0, '冻结题目清单不能为空')
+  const seen = new Set()
+  for (const question of questions) {
+    required(question && typeof question === 'object' && !Array.isArray(question)
+      && typeof question.questionId === 'string' && question.questionId.trim()
+      && question.questionId.trim() === question.questionId && !/[\r\n]/.test(question.questionId),
+    '冻结题目清单的问题 ID 无效（questionId）')
+    required(typeof question.lawAsOf === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(question.lawAsOf)
+      && !Number.isNaN(Date.parse(question.lawAsOf))
+      && new Date(question.lawAsOf).toISOString().slice(0, 10) === question.lawAsOf,
+    '冻结题目清单的法律适用日期无效（lawAsOf）')
+    required(typeof question.answerable === 'boolean', '冻结题目清单缺少布尔型 answerable 金标准')
+    required(!seen.has(question.questionId), '冻结题目清单的问题 ID 重复')
+    seen.add(question.questionId)
+  }
+}
+
 export function evaluate(records, frozenQuestions) {
   required(Array.isArray(records) && records.length > 0, '标注记录不能为空')
   const seen = new Set()
@@ -70,20 +88,10 @@ export function evaluate(records, frozenQuestions) {
     }
   }
   if (frozenQuestions !== undefined) {
-    required(Array.isArray(frozenQuestions) && frozenQuestions.length > 0, '冻结题目清单不能为空')
+    validateFrozenQuestions(frozenQuestions)
     const frozenDates = new Map()
     const frozenAnswerability = new Map()
     for (const question of frozenQuestions) {
-      required(question && typeof question === 'object' && !Array.isArray(question)
-        && typeof question.questionId === 'string' && question.questionId.trim()
-        && question.questionId.trim() === question.questionId && !/[\r\n]/.test(question.questionId),
-      '冻结题目清单的问题 ID 无效')
-      required(typeof question.lawAsOf === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(question.lawAsOf)
-        && !Number.isNaN(Date.parse(question.lawAsOf))
-        && new Date(question.lawAsOf).toISOString().slice(0, 10) === question.lawAsOf,
-      '冻结题目清单的法律适用日期无效')
-      required(typeof question.answerable === 'boolean', '冻结题目清单缺少布尔型 answerable 金标准')
-      required(!frozenDates.has(question.questionId), '冻结题目清单的问题 ID 重复')
       frozenDates.set(question.questionId, question.lawAsOf)
       frozenAnswerability.set(question.questionId, question.answerable)
     }
@@ -153,6 +161,108 @@ export async function readJsonl(file) {
   return parseJsonl(await fs.readFile(file))
 }
 
+const bootstrapMetrics = [
+  ['locatedRate', 'locatedClaims', 'generatedClaims'],
+  ['quoteAccuracy', 'matchedQuotes', 'generatedClaims'],
+  ['humanSupportRate', 'supportedClaims', 'judgedClaims'],
+  ['unsupportedDisplayedRate', 'unsupportedDisplayedClaims', 'displayedClaims'],
+  ['refusalRate', 'refusedRuns', 'runs'],
+  ['expectedRefusalRate', 'refusedUnanswerableRuns', 'unanswerableRuns'],
+  ['falseRefusalRate', 'refusedAnswerableRuns', 'answerableRuns'],
+]
+
+function seededRandom(seed) {
+  let state = seed >>> 0
+  return () => {
+    state = (state + 0x6D2B79F5) >>> 0
+    let value = Math.imul(state ^ state >>> 15, 1 | state)
+    value ^= value + Math.imul(value ^ value >>> 7, 61 | value)
+    return ((value ^ value >>> 14) >>> 0) / 4294967296
+  }
+}
+
+function summarizeBootstrap(series, point) {
+  const defined = series.filter(value => value !== null)
+  const undefinedResamples = series.length - defined.length
+  const reason = point === null ? 'point-undefined' : undefinedResamples ? 'undefined-resamples' : null
+  defined.sort((left, right) => left - right)
+  return {
+    point,
+    interval: reason ? null : {
+      low: defined[Math.floor((defined.length - 1) * 0.025)],
+      high: defined[Math.floor((defined.length - 1) * 0.975)],
+    },
+    validResamples: defined.length,
+    undefinedResamples,
+    reason,
+  }
+}
+
+const bootstrapComparisons = [
+  ['verified-direct', 'verified', 'direct'],
+  ['verified-rag', 'verified', 'rag'],
+  ['rag-direct', 'rag', 'direct'],
+]
+
+export function pairedQuestionBootstrap(records, frozenQuestions, options = {}) {
+  required(frozenQuestions !== undefined, 'bootstrap必须传入冻结题目清单')
+  const point = evaluate(records, frozenQuestions)
+  required(options && typeof options === 'object' && !Array.isArray(options), 'bootstrap选项必须为对象')
+  const iterations = options.iterations === undefined ? 2000 : options.iterations
+  const seed = options.seed === undefined ? 1 : options.seed
+  required(Number.isSafeInteger(iterations) && iterations >= 100 && iterations <= 100000, 'bootstrap迭代次数必须为100至100000的整数')
+  required(Number.isSafeInteger(seed) && seed >= 0 && seed <= 0xFFFFFFFF, 'bootstrap seed必须为非负32位整数')
+  const questionIds = [...new Set(records.map(record => record.questionId))].sort()
+  required(questionIds.length >= 2, 'bootstrap至少需要2道问题')
+  const pointByGroup = Object.fromEntries(point.map(result => [result.group, result]))
+  const clusters = questionIds.map(questionId => Object.fromEntries(
+    evaluate(records.filter(record => record.questionId === questionId)).map(result => [result.group, {
+      ...result.metricCounts, runs: result.runs, unjudgedDisplayedClaims: result.unjudgedDisplayedClaims,
+    }])
+  ))
+  const random = seededRandom(seed)
+  const series = Object.fromEntries(groups.map(group => [group,
+    Object.fromEntries(bootstrapMetrics.map(([metric]) => [metric, []]))]))
+  const differences = Object.fromEntries(bootstrapMetrics.map(([metric]) => [metric,
+    Object.fromEntries(bootstrapComparisons.map(([comparison]) => [comparison, []]))]))
+  for (let iteration = 0; iteration < iterations; iteration++) {
+    const sampled = Object.fromEntries(groups.map(group => [group, {}]))
+    for (let draw = 0; draw < clusters.length; draw++) {
+      const cluster = clusters[Math.floor(random() * clusters.length)]
+      for (const group of groups) {
+        for (const [key, count] of Object.entries(cluster[group])) {
+          sampled[group][key] = (sampled[group][key] || 0) + count
+        }
+      }
+    }
+    for (const [metric, numerator, denominator] of bootstrapMetrics) {
+      const values = Object.fromEntries(groups.map(group => {
+        const counts = sampled[group]
+        const value = metric === 'unsupportedDisplayedRate' && counts.unjudgedDisplayedClaims > 0
+          ? null : ratio(counts[numerator], counts[denominator])
+        series[group][metric].push(value)
+        return [group, value]
+      }))
+      for (const [comparison, left, right] of bootstrapComparisons) {
+        differences[metric][comparison].push(values[left] === null || values[right] === null
+          ? null : values[left] - values[right])
+      }
+    }
+  }
+  return {
+    method: 'paired-question-percentile-bootstrap', confidenceLevel: 0.95,
+    percentileRule: 'sorted[floor((B-1)*p)]', randomGenerator: 'mulberry32-v1',
+    seed, iterations, samplingUnit: 'questionId', questions: questionIds.length, point,
+    groups: Object.fromEntries(groups.map(group => [group,
+      Object.fromEntries(bootstrapMetrics.map(([metric]) => [metric,
+        summarizeBootstrap(series[group][metric], pointByGroup[group][metric])]))])),
+    differences: Object.fromEntries(bootstrapMetrics.map(([metric]) => [metric,
+      Object.fromEntries(bootstrapComparisons.map(([comparison, left, right]) => [comparison,
+        summarizeBootstrap(differences[metric][comparison],
+          pointByGroup[left][metric] === null || pointByGroup[right][metric] === null
+            ? null : pointByGroup[left][metric] - pointByGroup[right][metric])]))])),
+  }
+}
 export function parseJsonl(bytes) {
   let text
   try {
@@ -171,12 +281,27 @@ const entry = process.argv[1] ? pathToFileURL(process.argv[1]).href : ''
 if (import.meta.url === entry) {
   const file = process.argv[2]
   if (!file) {
-    console.error('用法: node scripts/legal-citation-evaluation.mjs <标注记录.jsonl> [冻结题目清单.jsonl]')
+    console.error('用法: node scripts/legal-citation-evaluation.mjs <标注记录.jsonl> [冻结题目清单.jsonl] [--bootstrap=次数 --seed=种子]')
     process.exitCode = 2
   } else {
     try {
-      const frozenQuestions = process.argv[3] ? await readJsonl(process.argv[3]) : undefined
-      console.log(JSON.stringify(evaluate(await readJsonl(file), frozenQuestions), null, 2))
+      const argumentsAfterFile = process.argv.slice(3)
+      const manifest = argumentsAfterFile[0] && !argumentsAfterFile[0].startsWith('--') ? argumentsAfterFile.shift() : undefined
+      const options = {}
+      for (const argument of argumentsAfterFile) {
+        const match = /^--(bootstrap|seed)=(0|[1-9]\d*)$/.exec(argument)
+        required(match, '未知或非法统计参数：仅支持--bootstrap=次数和--seed=种子')
+        required(!Object.hasOwn(options, match[1]), '统计参数不能重复')
+        options[match[1]] = Number(match[2])
+      }
+      required(Object.hasOwn(options, 'bootstrap') === Object.hasOwn(options, 'seed'), 'bootstrap与seed必须同时指定')
+      required(!Object.hasOwn(options, 'bootstrap') || manifest, 'bootstrap必须传入冻结题目清单')
+      const frozenQuestions = manifest ? await readJsonl(manifest) : undefined
+      const records = await readJsonl(file)
+      const result = Object.hasOwn(options, 'bootstrap')
+        ? pairedQuestionBootstrap(records, frozenQuestions, { iterations: options.bootstrap, seed: options.seed })
+        : evaluate(records, frozenQuestions)
+      console.log(JSON.stringify(result, null, 2))
     } catch (error) {
       console.error(error.message)
       process.exitCode = 1
