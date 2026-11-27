@@ -4,8 +4,10 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { checkRounds } from '../../scripts/check-evaluation-rounds.mjs'
+import { summarizeLatency } from '../../scripts/summarize-evaluation-latency.mjs'
 import { evaluate, pairedQuestionBootstrap, readJsonl } from '../../scripts/legal-citation-evaluation.mjs'
 
 const claim = (located, quote, support, displayed) => ({
@@ -15,6 +17,106 @@ const caseRow = (group, claims, options = {}) => ({
   group, questionId: 'q1', run: 1, modelVersion: 'frozen-model-v1', promptVersion: 'prompt-v1',
   corpusSnapshotId: 'frozen-corpus-v1', lawAsOf: '2026-01-01',
   answerable: true, refused: !claims.some(item => item.displayed), claims, ...options,
+})
+
+test('latency percentiles use complete planned groups, preserve zero and reject malformed durations', () => {
+  const questions = [{ questionId: 'q1', lawAsOf: '2026-01-01', answerable: true }]
+  const rows = [30, 0, 10, 20].flatMap((elapsedMs, index) => ['direct', 'rag', 'verified'].map(group =>
+    caseRow(group, [], { run: index + 1, elapsedMs: group === 'rag' && !index ? null : elapsedMs })))
+  const result = summarizeLatency(rows, questions, 4)
+  assert.deepEqual(result.groups[0], { group: 'direct', measured: 4, missing: 0, p50Ms: 10, p95Ms: 30 })
+  assert.deepEqual(result.groups[1], { group: 'rag', measured: 3, missing: 1, p50Ms: null, p95Ms: null })
+  assert.equal(result.groups[2].p95Ms, 30)
+  assert.throws(() => summarizeLatency(rows, questions, 5), /预定轮数/)
+  for (const elapsedMs of ['20', -1, 1.5, Infinity]) {
+    assert.throws(() => summarizeLatency([{ ...rows[0], elapsedMs }, ...rows.slice(1)], questions, 4), /elapsedMs/)
+  }
+})
+
+test('latency counts each run once regardless of claim count, including completed refusals', () => {
+  const questions = [{ questionId: 'q1', lawAsOf: '2026-01-01', answerable: true }]
+  const rows = [[], [claim(true, true, 'SUPPORTED', true)], Array.from({ length: 8 }, () => claim(true, true, 'SUPPORTED', true))]
+    .flatMap((claims, index) => ['direct', 'rag', 'verified'].map(group => caseRow(group, claims,
+      { run: index + 1, elapsedMs: [10, 20, 90][index] })))
+  for (const group of summarizeLatency(rows, questions, 3).groups) {
+    assert.equal(group.measured, 3)
+    assert.equal(group.p50Ms, 20)
+    assert.equal(group.p95Ms, 90)
+  }
+})
+
+test('latency CLI reports missing time and rejects invalid inputs without publishing scores', async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'latency-summary-'))
+  const recordFile = path.join(directory, 'records.jsonl')
+  const questionFile = path.join(directory, 'questions.jsonl')
+  const script = fileURLToPath(new URL('../../scripts/summarize-evaluation-latency.mjs', import.meta.url))
+  const invoke = (rounds, ...flags) => spawnSync(process.execPath, [script, recordFile, questionFile, rounds, ...flags], {
+    encoding: 'utf8', timeout: 10000,
+  })
+  const rows = [caseRow('direct', [], { elapsedMs: 0 }), caseRow('rag', []),
+    caseRow('verified', [], { elapsedMs: 32 })]
+  try {
+    await fs.writeFile(questionFile, JSON.stringify({ questionId: 'q1', lawAsOf: '2026-01-01', answerable: true }))
+    await fs.writeFile(recordFile, rows.map(JSON.stringify).join('\n'))
+    const complete = invoke('1')
+    assert.equal(complete.status, 0, complete.stderr)
+    const result = JSON.parse(complete.stdout)
+    assert.deepEqual(result.groups, [
+      { group: 'direct', measured: 1, missing: 0, p50Ms: 0, p95Ms: 0 },
+      { group: 'rag', measured: 0, missing: 1, p50Ms: null, p95Ms: null },
+      { group: 'verified', measured: 1, missing: 0, p50Ms: 32, p95Ms: 32 },
+    ])
+    const hash = bytes => createHash('sha256').update(bytes).digest('hex')
+    assert.deepEqual(result.inputSha256, {
+      records: hash(await fs.readFile(recordFile)),
+      frozenQuestions: hash(await fs.readFile(questionFile)),
+    })
+    await fs.appendFile(recordFile, '\n')
+    const reformatted = invoke('1')
+    assert.equal(reformatted.status, 0, reformatted.stderr)
+    const reformattedResult = JSON.parse(reformatted.stdout)
+    assert.deepEqual(reformattedResult.groups, result.groups)
+    assert.notEqual(reformattedResult.inputSha256.records, result.inputSha256.records)
+    assert.equal(reformattedResult.inputSha256.frozenQuestions, result.inputSha256.frozenQuestions)
+    const manifestFlag = '--manifest-sha256=' + result.inputSha256.frozenQuestions.toUpperCase()
+    const pinned = invoke('1', manifestFlag)
+    assert.equal(pinned.status, 0, pinned.stderr)
+    const pinnedResult = JSON.parse(pinned.stdout)
+    assert.equal(pinnedResult.expectedManifestSha256, result.inputSha256.frozenQuestions)
+    const evaluationScript = fileURLToPath(new URL('../../scripts/legal-citation-evaluation.mjs', import.meta.url))
+    const audited = spawnSync(process.execPath,
+      [evaluationScript, recordFile, questionFile, '--rounds=1', manifestFlag, '--audit'],
+      { encoding: 'utf8', timeout: 10000 })
+    assert.equal(audited.status, 0, audited.stderr)
+    const evaluation = JSON.parse(audited.stdout)
+    assert.deepEqual(pinnedResult.inputSha256, evaluation.inputSha256)
+    assert.equal(pinnedResult.expectedManifestSha256, evaluation.expectedManifestSha256)
+    assert.equal(pinnedResult.coverage.roundsPerQuestion, evaluation.checkedRoundsPerQuestion)
+    await fs.appendFile(questionFile, '\n')
+    const changedManifest = invoke('1', manifestFlag)
+    assert.equal(changedManifest.status, 1, changedManifest.stderr)
+    assert.match(changedManifest.stderr, /预登记 SHA-256 不一致/)
+    assert.equal(changedManifest.stdout, '')
+    for (const flags of [['--manifest-sha256=bad'], [manifestFlag, manifestFlag], ['--unknown']]) {
+      const invalid = invoke('1', ...flags)
+      assert.equal(invalid.status, 1, invalid.stderr)
+      assert.equal(invalid.stdout, '')
+    }
+    for (const rounds of ['01', '101', '2']) {
+      const invalid = invoke(rounds)
+      assert.equal(invalid.status, 1, invalid.stderr)
+      assert.equal(invalid.stdout, '')
+    }
+    await fs.writeFile(recordFile, [...rows.slice(0, 2), { ...rows[2], elapsedMs: '32' }].map(JSON.stringify).join('\n'))
+    const invalid = invoke('1')
+    assert.equal(invalid.status, 1, invalid.stderr)
+    assert.equal(invalid.stdout, '')
+    assert.match(invalid.stderr, /verified.*elapsedMs/)
+  } finally {
+    await fs.rm(recordFile, { force: true })
+    await fs.rm(questionFile, { force: true })
+    await fs.rmdir(directory)
+  }
 })
 
 test('preflight checks planned rounds even when three groups omit the same round', () => {
@@ -69,6 +171,19 @@ test('uses the same denominators for all groups and keeps zero denominators N/A'
   assert.equal(verified.metricCounts.supportedClaims, 1)
   assert.equal(verified.metricCounts.judgedClaims, 1)
   assert.equal(verified.unsupportedDisplayedRate, null)
+})
+
+test('unsupported breakdown partitions only displayed, adjudicated unsupported claims', () => {
+  const claims = [claim(false, false, 'UNSUPPORTED', true), claim(true, false, 'UNSUPPORTED', true),
+    claim(true, true, 'UNSUPPORTED', true), claim(true, true, 'UNSUPPORTED', false),
+    claim(true, true, 'UNCERTAIN', true), claim(true, true, 'SUPPORTED', true)]
+  const rows = ['direct', 'rag', 'verified'].map(group => caseRow(group, claims))
+  for (const result of evaluate(rows)) {
+    assert.deepEqual(result.unsupportedDisplayedBreakdown,
+      { sourceNotLocated: 1, locatedQuoteNotMatched: 1, matchedQuoteNotSupporting: 1 })
+    assert.equal(result.metricCounts.unsupportedDisplayedClaims, 3)
+    assert.equal(result.unsupportedDisplayedRate, null)
+  }
 })
 
 test('counts displayed conclusions without located citations as answers rather than refusals', () => {
@@ -275,6 +390,15 @@ test('accepts UTF-8 BOM only at the start of a JSONL file', async () => {
     await fs.writeFile(file, JSON.stringify(rows[0]) + '\n' + '\uFEFF' + JSON.stringify(rows[1]))
     await assert.rejects(readJsonl(file), /第 2 行/)
     await fs.writeFile(file, '\uFEFF\uFEFF' + JSON.stringify(rows[0]))
+    await assert.rejects(readJsonl(file), /第 1 行/)
+    const jsonRows = rows.map(JSON.stringify)
+    await fs.writeFile(file, '\uFEFF' + jsonRows.join('\r\n \t\r\n'))
+    assert.deepEqual(await readJsonl(file), rows)
+    for (const strayLine of [' \uFEFF\t', '\u00A0']) {
+      await fs.writeFile(file, [jsonRows[0], strayLine, ...jsonRows.slice(1)].join('\n'))
+      await assert.rejects(readJsonl(file), /第 2 行/)
+    }
+    await fs.writeFile(file, '\uFEFF\uFEFF\n' + jsonRows.join('\n'))
     await assert.rejects(readJsonl(file), /第 1 行/)
   } finally {
     await fs.rm(directory, { recursive: true, force: true })
@@ -560,7 +684,36 @@ test('CLI keeps default point estimates and exposes bootstrap only with explicit
     assert.equal(success.status, 0, success.stderr)
     assert.equal(success.stderr, '')
     assert.deepEqual(JSON.parse(success.stdout), pairedQuestionBootstrap(rows, frozen, { iterations: 100, seed: 0 }))
+    for (const flags of [[], ['--bootstrap=100', '--seed=0']]) {
+      const complete = invoke([file, manifest, '--rounds=1', ...flags])
+      assert.equal(complete.status, 0, complete.stderr)
+      assert.deepEqual(JSON.parse(complete.stdout), flags.length ? JSON.parse(success.stdout) : evaluate(rows, frozen))
+      const audited = invoke([file, manifest, '--rounds=1', ...flags, '--audit'])
+      assert.equal(audited.status, 0, audited.stderr)
+      const hash = bytes => createHash('sha256').update(bytes).digest('hex')
+      assert.deepEqual(JSON.parse(audited.stdout), {
+        inputSha256: { records: hash(await fs.readFile(file)), frozenQuestions: hash(await fs.readFile(manifest)) },
+        checkedRoundsPerQuestion: 1,
+        result: JSON.parse(complete.stdout),
+      })
+      const omittedFinalRound = invoke([file, manifest, '--rounds=2', ...flags])
+      assert.equal(omittedFinalRound.status, 1)
+      assert.equal(omittedFinalRound.stdout, '')
+      assert.match(omittedFinalRound.stderr, /预定轮数/)
+      const auditedOmission = invoke([file, manifest, '--rounds=2', ...flags, '--audit'])
+      assert.equal(auditedOmission.status, 1)
+      assert.equal(auditedOmission.stdout, '')
+      assert.match(auditedOmission.stderr, /预定轮数/)
+    }
     for (const argumentsList of [
+      [file, '--rounds=1'],
+      [file, '--audit'],
+      [file, manifest, '--audit'],
+      [file, manifest, '--rounds=1', '--audit', '--audit'],
+      [file, manifest, '--rounds=0'],
+      [file, manifest, '--rounds=101'],
+      [file, manifest, '--rounds=01'],
+      [file, manifest, '--rounds=1', '--rounds=1'],
       [file, '--bootstrap=100', '--seed=1'],
       [file, manifest, '--bootstrap=100'],
       [file, manifest, '--seed=1'],
@@ -586,6 +739,25 @@ test('CLI keeps default point estimates and exposes bootstrap only with explicit
       assert.equal(failure.status, 1, JSON.stringify(argumentsList))
       assert.equal(failure.stdout, '', JSON.stringify(argumentsList))
       assert.notEqual(failure.stderr, '', JSON.stringify(argumentsList))
+    }
+    const manifestBytes = await fs.readFile(manifest)
+    const manifestDigest = createHash('sha256').update(manifestBytes).digest('hex')
+    const manifestFlag = '--manifest-sha256=' + manifestDigest.toUpperCase()
+    const matched = invoke([file, manifest, '--rounds=1', '--audit', manifestFlag])
+    assert.equal(matched.status, 0, matched.stderr)
+    assert.equal(JSON.parse(matched.stdout).expectedManifestSha256, manifestDigest)
+    await fs.appendFile(manifest, '\n')
+    for (const args of [[], ['--bootstrap=100', '--seed=0', '--rounds=1', '--audit']]) {
+      const mismatch = invoke([file, manifest, manifestFlag, ...args])
+      assert.equal(mismatch.status, 1)
+      assert.equal(mismatch.stdout, '')
+      assert.match(mismatch.stderr, /SHA-256.*不一致/)
+    }
+    await fs.writeFile(manifest, manifestBytes)
+    for (const args of [[file, manifestFlag], [file, manifest, manifestFlag, manifestFlag], [file, manifest, '--manifest-sha256=bad']]) {
+      const invalid = invoke(args)
+      assert.equal(invalid.status, 1)
+      assert.equal(invalid.stdout, '')
     }
     await fs.writeFile(file, rows.slice(1).map(JSON.stringify).join('\n'))
     const invalidRecords = invoke([file, manifest, '--bootstrap=100', '--seed=1'])

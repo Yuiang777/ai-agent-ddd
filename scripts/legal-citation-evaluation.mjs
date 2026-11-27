@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
 import { pathToFileURL } from 'node:url'
 
@@ -30,7 +31,11 @@ export function validateFrozenQuestions(questions) {
   }
 }
 
-export function evaluate(records, frozenQuestions) {
+export function evaluate(records, frozenQuestions, expectedRounds) {
+  if (expectedRounds !== undefined) {
+    required(Number.isSafeInteger(expectedRounds) && expectedRounds >= 1 && expectedRounds <= 100, '计划轮数须为 1–100 的整数')
+    required(frozenQuestions !== undefined, '核对预定轮数必须传入冻结题目清单')
+  }
   required(Array.isArray(records) && records.length > 0, '标注记录不能为空')
   const seen = new Set()
   const answerability = new Map()
@@ -115,12 +120,14 @@ export function evaluate(records, frozenQuestions) {
   const baseline = [...covered.direct].sort().join('\n')
   required(baseline.length > 0 && groups.every(group => [...covered[group]].sort().join('\n') === baseline),
     '三个实验组必须覆盖相同的问题 ID 与运行轮次')
+  required(expectedRounds === undefined || counts[0] === expectedRounds, '标注记录与预定轮数不一致')
 
   return groups.map(group => {
     const items = records.filter(record => record.group === group)
     const claims = items.flatMap(record => record.claims)
     const judged = claims.filter(claim => claim.humanSupport !== 'UNCERTAIN')
     const displayed = claims.filter(claim => claim.displayed)
+    const unsupportedDisplayed = displayed.filter(claim => claim.humanSupport === 'UNSUPPORTED')
     const unjudgedDisplayed = displayed.filter(claim => claim.humanSupport === 'UNCERTAIN').length
     const answerable = items.filter(item => item.answerable)
     const unanswerable = items.filter(item => !item.answerable)
@@ -131,7 +138,7 @@ export function evaluate(records, frozenQuestions) {
       judgedClaims: judged.length,
       supportedClaims: judged.filter(claim => claim.humanSupport === 'SUPPORTED').length,
       displayedClaims: displayed.length,
-      unsupportedDisplayedClaims: displayed.filter(claim => claim.humanSupport === 'UNSUPPORTED').length,
+      unsupportedDisplayedClaims: unsupportedDisplayed.length,
       refusedRuns: items.filter(item => item.refused).length,
       answerableRuns: answerable.length,
       refusedAnswerableRuns: answerable.filter(item => item.refused).length,
@@ -144,6 +151,11 @@ export function evaluate(records, frozenQuestions) {
       frozenQuestionCoverageChecked: frozenQuestions !== undefined,
       runs: items.length, claims: claims.length, unjudgedClaims: claims.length - judged.length,
       metricCounts,
+      unsupportedDisplayedBreakdown: {
+        sourceNotLocated: unsupportedDisplayed.filter(claim => !claim.evidenceLocated).length,
+        locatedQuoteNotMatched: unsupportedDisplayed.filter(claim => claim.evidenceLocated && !claim.quoteMatched).length,
+        matchedQuoteNotSupporting: unsupportedDisplayed.filter(claim => claim.quoteMatched).length,
+      },
       locatedRate: ratio(metricCounts.locatedClaims, metricCounts.generatedClaims),
       quoteAccuracy: ratio(metricCounts.matchedQuotes, metricCounts.generatedClaims),
       humanSupportRate: ratio(metricCounts.supportedClaims, metricCounts.judgedClaims),
@@ -206,17 +218,22 @@ const bootstrapComparisons = [
 
 export function pairedQuestionBootstrap(records, frozenQuestions, options = {}) {
   required(frozenQuestions !== undefined, 'bootstrap必须传入冻结题目清单')
-  const point = evaluate(records, frozenQuestions)
   required(options && typeof options === 'object' && !Array.isArray(options), 'bootstrap选项必须为对象')
+  const point = evaluate(records, frozenQuestions, options.expectedRounds)
   const iterations = options.iterations === undefined ? 2000 : options.iterations
   const seed = options.seed === undefined ? 1 : options.seed
   required(Number.isSafeInteger(iterations) && iterations >= 100 && iterations <= 100000, 'bootstrap迭代次数必须为100至100000的整数')
   required(Number.isSafeInteger(seed) && seed >= 0 && seed <= 0xFFFFFFFF, 'bootstrap seed必须为非负32位整数')
-  const questionIds = [...new Set(records.map(record => record.questionId))].sort()
+  const recordsByQuestion = new Map()
+  for (const record of records) {
+    if (!recordsByQuestion.has(record.questionId)) recordsByQuestion.set(record.questionId, [])
+    recordsByQuestion.get(record.questionId).push(record)
+  }
+  const questionIds = [...recordsByQuestion.keys()].sort()
   required(questionIds.length >= 2, 'bootstrap至少需要2道问题')
   const pointByGroup = Object.fromEntries(point.map(result => [result.group, result]))
   const clusters = questionIds.map(questionId => Object.fromEntries(
-    evaluate(records.filter(record => record.questionId === questionId)).map(result => [result.group, {
+    evaluate(recordsByQuestion.get(questionId)).map(result => [result.group, {
       ...result.metricCounts, runs: result.runs, unjudgedDisplayedClaims: result.unjudgedDisplayedClaims,
     }])
   ))
@@ -272,7 +289,7 @@ export function parseJsonl(bytes) {
   }
   const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/)
   return lines.flatMap((line, index) => {
-    if (!line.trim()) return []
+    if (/^[ \t\r]*$/.test(line)) return []
     try { return [JSON.parse(line)] } catch { throw new Error('第 ' + (index + 1) + ' 行不是合法 JSON') }
   })
 }
@@ -281,7 +298,7 @@ const entry = process.argv[1] ? pathToFileURL(process.argv[1]).href : ''
 if (import.meta.url === entry) {
   const file = process.argv[2]
   if (!file) {
-    console.error('用法: node scripts/legal-citation-evaluation.mjs <标注记录.jsonl> [冻结题目清单.jsonl] [--bootstrap=次数 --seed=种子]')
+    console.error('用法: node scripts/legal-citation-evaluation.mjs <标注记录.jsonl> [冻结题目清单.jsonl] [--rounds=预登记轮数] [--manifest-sha256=预登记清单散列] [--bootstrap=次数 --seed=种子] [--audit]')
     process.exitCode = 2
   } else {
     try {
@@ -289,19 +306,44 @@ if (import.meta.url === entry) {
       const manifest = argumentsAfterFile[0] && !argumentsAfterFile[0].startsWith('--') ? argumentsAfterFile.shift() : undefined
       const options = {}
       for (const argument of argumentsAfterFile) {
-        const match = /^--(bootstrap|seed)=(0|[1-9]\d*)$/.exec(argument)
-        required(match, '未知或非法统计参数：仅支持--bootstrap=次数和--seed=种子')
+        if (argument === '--audit') {
+          required(!options.audit, '统计参数不能重复')
+          options.audit = true
+          continue
+        }
+        if (argument.startsWith('--manifest-sha256=')) {
+          const digest = argument.slice('--manifest-sha256='.length)
+          required(/^[0-9a-f]{64}$/i.test(digest), 'manifest-sha256 必须是 64 位十六进制散列')
+          required(options.manifestSha256 === undefined, '统计参数不能重复')
+          options.manifestSha256 = digest.toLowerCase()
+          continue
+        }
+        const match = /^--(rounds|bootstrap|seed)=(0|[1-9]\d*)$/.exec(argument)
+        required(match, '未知或非法统计参数')
         required(!Object.hasOwn(options, match[1]), '统计参数不能重复')
         options[match[1]] = Number(match[2])
       }
       required(Object.hasOwn(options, 'bootstrap') === Object.hasOwn(options, 'seed'), 'bootstrap与seed必须同时指定')
       required(!Object.hasOwn(options, 'bootstrap') || manifest, 'bootstrap必须传入冻结题目清单')
-      const frozenQuestions = manifest ? await readJsonl(manifest) : undefined
-      const records = await readJsonl(file)
+      required(!options.audit || (manifest && Object.hasOwn(options, 'rounds')), '--audit 必须同时传入冻结题目清单和 --rounds')
+      required(options.manifestSha256 === undefined || manifest, '--manifest-sha256 必须传入冻结题目清单')
+      const sha256 = bytes => createHash('sha256').update(bytes).digest('hex')
+      const questionBytes = manifest ? await fs.readFile(manifest) : undefined
+      const questionSha256 = options.audit || options.manifestSha256 !== undefined ? sha256(questionBytes) : undefined
+      required(options.manifestSha256 === undefined || questionSha256 === options.manifestSha256, '冻结题目清单与预登记 SHA-256 不一致')
+      const recordBytes = await fs.readFile(file)
+      const frozenQuestions = questionBytes === undefined ? undefined : parseJsonl(questionBytes)
+      const records = parseJsonl(recordBytes)
       const result = Object.hasOwn(options, 'bootstrap')
-        ? pairedQuestionBootstrap(records, frozenQuestions, { iterations: options.bootstrap, seed: options.seed })
-        : evaluate(records, frozenQuestions)
-      console.log(JSON.stringify(result, null, 2))
+        ? pairedQuestionBootstrap(records, frozenQuestions, { iterations: options.bootstrap, seed: options.seed, expectedRounds: options.rounds })
+        : evaluate(records, frozenQuestions, options.rounds)
+      const output = options.audit ? {
+        inputSha256: { records: sha256(recordBytes), frozenQuestions: questionSha256 },
+        ...(options.manifestSha256 === undefined ? {} : { expectedManifestSha256: options.manifestSha256 }),
+        checkedRoundsPerQuestion: options.rounds,
+        result,
+      } : result
+      console.log(JSON.stringify(output, null, 2))
     } catch (error) {
       console.error(error.message)
       process.exitCode = 1

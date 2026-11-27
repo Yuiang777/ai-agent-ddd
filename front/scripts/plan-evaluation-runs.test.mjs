@@ -23,27 +23,39 @@ test('planned questions and manifest hash use the same single-read snapshot', as
 test('pre-registers deterministic paired order without inventing answers', async () => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'legal-run-plan-'))
   const file = path.join(directory, 'questions.jsonl')
+  const questions = [
+    { questionId: 'case-a', lawAsOf: '2024-01-01', answerable: true, questionText: 'Synthetic wording A' },
+    { questionId: 'case-b', lawAsOf: '2025-01-01', answerable: false, questionText: 'Synthetic wording B' },
+  ]
   try {
-    await fs.writeFile(file, [
-      { questionId: 'case-a', lawAsOf: '2024-01-01', answerable: true },
-      { questionId: 'case-b', lawAsOf: '2025-01-01', answerable: false },
-    ].map(JSON.stringify).join('\n'))
+    await fs.writeFile(file, questions.map(JSON.stringify).join('\n'))
     const plan = await planRuns(file, 2, 'published-seed')
     assert.equal(plan.length, 4)
     assert.deepEqual(plan, await planRuns(file, 2, 'published-seed'))
     assert.deepEqual(plan.map(item => [item.questionId, item.run]),
       [['case-a', 1], ['case-a', 2], ['case-b', 1], ['case-b', 2]])
+    assert.deepEqual(plan.map(item => item.order), [
+      ['verified', 'direct', 'rag'],
+      ['rag', 'verified', 'direct'],
+      ['rag', 'verified', 'direct'],
+      ['rag', 'verified', 'direct'],
+    ])
     for (const item of plan) {
-      assert.deepEqual([...item.order].sort(), ['direct', 'rag', 'verified'])
+      assert.deepEqual(Object.keys(item).sort(), ['lawAsOf', 'manifestSha256', 'order', 'questionId', 'run'])
       assert.match(item.manifestSha256, /^[a-f0-9]{64}$/)
-      assert.equal(Object.hasOwn(item, 'claims'), false)
-      assert.equal(Object.hasOwn(item, 'answerable'), false)
     }
     const script = fileURLToPath(new URL('../../scripts/plan-evaluation-runs.mjs', import.meta.url))
     const output = spawnSync(process.execPath, [script, file, '2', 'published-seed'],
       { encoding: 'utf8', timeout: 10000 })
     assert.equal(output.status, 0, output.stderr)
     assert.deepEqual(output.stdout.trim().split('\n').map(JSON.parse), plan)
+    const rewritten = [{ ...questions[0], questionText: 'Revised synthetic wording A' }, questions[1]]
+    const rewrittenBytes = rewritten.map(JSON.stringify).join('\n')
+    await fs.writeFile(file, rewrittenBytes)
+    const rewrittenHash = createHash('sha256').update(rewrittenBytes).digest('hex')
+    assert.notEqual(rewrittenHash, plan[0].manifestSha256)
+    assert.deepEqual(await planRuns(file, 2, 'published-seed'),
+      plan.map(item => ({ ...item, manifestSha256: rewrittenHash })))
   } finally {
     await fs.rm(directory, { recursive: true, force: true })
   }

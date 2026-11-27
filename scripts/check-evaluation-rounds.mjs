@@ -1,13 +1,9 @@
 import { pathToFileURL } from 'node:url'
-import { evaluate, readJsonl, validateFrozenQuestions } from './legal-citation-evaluation.mjs'
+import { evaluate, readJsonl } from './legal-citation-evaluation.mjs'
 
 export function checkRounds(records, questions, rounds) {
   if (!Number.isSafeInteger(rounds) || rounds < 1 || rounds > 100) throw new Error('计划轮数须为 1–100 的整数')
-  validateFrozenQuestions(questions)
-  evaluate(records, questions)
-  if (records.some(record => record.run > rounds) || records.length !== questions.length * rounds * 3) {
-    throw new Error('标注记录与预定轮数不一致')
-  }
+  evaluate(records, questions, rounds)
   return { questions: questions.length, roundsPerQuestion: rounds, records: records.length }
 }
 
